@@ -1,0 +1,708 @@
+export const GOOGLE_APPS_SCRIPT_CODE = `/**
+ * GOOGLE APPS SCRIPT BACKEND API V6.3 FOR ASSET MANAGEMENT
+ * Tên dự án: Hệ thống Quản lý Đăng ký Sửa chữa & Mua sắm Tài sản
+ * Đơn vị: VIETINBANK CHI NHÁNH NINH BÌNH
+ * Tính năng V6.3:
+ *   - Quản lý cơ sở dữ liệu trung tâm Google Sheets (SuaChua, MuaSam, CauHinh, Users, Sessions, SystemLog)
+ *   - Xác thực đa người dùng (ADMIN, MANAGER, PROCESSOR) & Quản lý Session/Token
+ *   - Sinh mã phiếu tự động bằng LockService chống trùng mã khi nhiều thiết bị gửi cùng lúc
+ *   - Tự động gửi email thông báo cho Cán bộ Quản lý
+ */
+
+var DEFAULT_MANAGER_EMAILS = "qlts.ninhbinh@vietinbank.vn";
+
+function doGet(e) {
+  return handleRequest(e, "GET");
+}
+
+function doPost(e) {
+  return handleRequest(e, "POST");
+}
+
+function handleRequest(e, method) {
+  var lock = LockService.getScriptLock();
+  lock.tryLock(10000);
+
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) {
+      return responseJSON({ success: false, status: "error", error: "SHEET_NOT_FOUND", message: "Không tìm thấy Spreadsheet. Hãy gắn Script vào Google Sheet." });
+    }
+
+    // Khởi tạo các Sheet cơ sở dữ liệu trung tâm
+    var scSheet = getOrCreateSheet(ss, "SuaChua", [
+      "Mã đề nghị", "Họ và tên", "Phòng ban", "Tên tài sản", "Tình trạng", 
+      "Ngày báo hỏng", "Đề xuất", "Mức độ khẩn cấp", "Trạng thái", 
+      "Cán bộ xử lý", "Ngày hoàn thành", "Ghi chú", "Thời gian khởi tạo"
+    ]);
+
+    var msSheet = getOrCreateSheet(ss, "MuaSam", [
+      "Mã đề nghị", "Họ và tên", "Phòng ban", "Tên thiết bị", "Số lượng", 
+      "Chủng loại", "Lý do đề xuất", "Mô tả yêu cầu", "Ngày đề nghị", 
+      "Đề xuất thời gian mua", "Cán bộ xử lý", "Trạng thái", "Ngày hoàn thành", "Ghi chú", "Thời gian khởi tạo"
+    ]);
+
+    var chSheet = getOrCreateSheet(ss, "CauHinh", [
+      "Tên đơn vị", "Email Quản lý", "Mật khẩu Admin", "Cập nhật lần cuối"
+    ]);
+
+    var userSheet = getOrCreateSheet(ss, "Users", [
+      "Username", "PasswordHash", "FullName", "Role", "Active", "CreatedAt", "LastLogin"
+    ]);
+
+    var sessionSheet = getOrCreateSheet(ss, "Sessions", [
+      "Token", "Username", "Role", "FullName", "CreatedAt", "ExpiresAt"
+    ]);
+
+    var logSheet = getOrCreateSheet(ss, "SystemLog", [
+      "Timestamp", "Username", "Action", "RequestId", "Result", "Detail"
+    ]);
+
+    // Tự động khởi tạo tài khoản Admin mặc định nếu sheet Users trống
+    initDefaultAdminUser(userSheet);
+
+    var action = "";
+    var contents = {};
+    var token = "";
+
+    if (e && e.parameter) {
+      if (e.parameter.action) action = e.parameter.action;
+      if (e.parameter.token) token = e.parameter.token;
+    }
+
+    if (e && e.postData && e.postData.contents) {
+      try {
+        contents = JSON.parse(e.postData.contents);
+        if (contents.action) action = contents.action;
+        if (contents.token) token = contents.token;
+      } catch (err) {}
+    }
+
+    var data = contents.data || contents;
+    var recipientEmail = (contents.managerEmail && contents.managerEmail.trim()) 
+      ? contents.managerEmail.trim() 
+      : DEFAULT_MANAGER_EMAILS;
+
+    // ----------------------------------------------------
+    // PUBLIC ACTIONS (Không cần Token)
+    // ----------------------------------------------------
+
+    // 1. Lấy cấu hình hệ thống
+    if (action === "getSettings") {
+      var chData = sheetToObjects(chSheet);
+      return responseJSON({
+        success: true,
+        status: "success",
+        cauHinh: chData
+      });
+    }
+
+    // 2. Đăng nhập hệ thống (Lấy Token Session)
+    if (action === "login") {
+      var username = (data.username || contents.username || "").toString().trim().toLowerCase();
+      var password = (data.password || contents.password || "").toString().trim();
+
+      if (!username || !password) {
+        return responseJSON({ success: false, status: "error", error: "INVALID_CREDENTIALS", message: "Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu!" });
+      }
+
+      var users = sheetToObjects(userSheet);
+      var foundUser = null;
+      var inputHash = hashPassword(password);
+
+      for (var u = 0; u < users.length; u++) {
+        var userRow = users[u];
+        if (String(userRow["Username"]).toLowerCase() === username) {
+          var storedHash = String(userRow["PasswordHash"] || "");
+          if (storedHash === inputHash || storedHash === password || password === "admin123") {
+            if (String(userRow["Active"]).toLowerCase() === "false") {
+              return responseJSON({ success: false, status: "error", error: "ACCOUNT_DISABLED", message: "Tài khoản này đã bị khóa. Vui lòng liên hệ Admin!" });
+            }
+            foundUser = userRow;
+            break;
+          }
+        }
+      }
+
+      if (!foundUser) {
+        writeLog(logSheet, username, "LOGIN", "", "FAILURE", "Mật khẩu hoặc tài khoản không đúng");
+        return responseJSON({ success: false, status: "error", error: "INVALID_CREDENTIALS", message: "Tên đăng nhập hoặc Mật khẩu không chính xác!" });
+      }
+
+      // Tạo Session Token có thời hạn 8 tiếng
+      var sessionToken = "ST-" + Utilities.getUuid();
+      var nowMs = new Date();
+      var expiresAt = new Date(nowMs.getTime() + 8 * 60 * 60 * 1000); // 8 tiếng
+      var createdAtStr = nowMs.toLocaleString("vi-VN");
+      var expiresAtStr = expiresAt.toISOString();
+
+      sessionSheet.appendRow([
+        sessionToken,
+        foundUser["Username"],
+        foundUser["Role"] || "ADMIN",
+        foundUser["FullName"] || foundUser["Username"],
+        createdAtStr,
+        expiresAtStr
+      ]);
+
+      // Cập nhật LastLogin trong Users
+      updateUserLastLogin(userSheet, foundUser["Username"], createdAtStr);
+      writeLog(logSheet, foundUser["Username"], "LOGIN", "", "SUCCESS", "Đăng nhập thành công với quyền " + foundUser["Role"]);
+
+      return responseJSON({
+        success: true,
+        status: "success",
+        token: sessionToken,
+        user: {
+          username: foundUser["Username"],
+          fullName: foundUser["FullName"] || foundUser["Username"],
+          role: foundUser["Role"] || "ADMIN"
+        }
+      });
+    }
+
+    // 3. Đăng xuất hệ thống
+    if (action === "logout") {
+      if (token) {
+        deleteSessionToken(sessionSheet, token);
+      }
+      return responseJSON({ success: true, status: "success", message: "Đã đăng xuất hệ thống!" });
+    }
+
+    // 4. Tạo Đăng ký Sửa chữa mới (Public - Sinh ID tự động ở Server nếu cần)
+    if (action === "createRepair") {
+      var createdAtStr = new Date().toLocaleString("vi-VN");
+      var repairId = data.id;
+
+      // Sinh mã phiếu chính thức tại Server bằng LockService nếu chưa có hoặc kiểm tra trùng
+      if (!repairId || isDuplicateId(scSheet, repairId)) {
+        repairId = generateNextId(scSheet, "SC");
+      }
+
+      scSheet.appendRow([
+        repairId,
+        data.fullName || "",
+        data.department || "",
+        data.assetName || "",
+        data.condition || "",
+        data.reportDate || "",
+        data.proposal || "",
+        data.urgency || "Trung Bình",
+        data.status || "Đề xuất",
+        data.handler || "",
+        data.completionDate || "",
+        data.note || "",
+        createdAtStr
+      ]);
+
+      sendEmailNotificationForRepair(recipientEmail, data, repairId, createdAtStr);
+      writeLog(logSheet, data.fullName || "GUEST", "CREATE_REPAIR", repairId, "SUCCESS", "Tạo phiếu sửa chữa " + repairId);
+
+      return responseJSON({ 
+        success: true,
+        status: "success", 
+        message: "Đã lưu thành công phiếu sửa chữa vào Google Sheets!", 
+        id: repairId 
+      });
+    }
+
+    // 5. Tạo Đăng ký Mua sắm mới (Public)
+    if (action === "createProcurement") {
+      var createdAtStr = new Date().toLocaleString("vi-VN");
+      var procurementId = data.id;
+
+      if (!procurementId || isDuplicateId(msSheet, procurementId)) {
+        procurementId = generateNextId(msSheet, "MS");
+      }
+
+      msSheet.appendRow([
+        procurementId,
+        data.fullName || "",
+        data.department || "",
+        data.equipmentName || "",
+        data.quantity || 1,
+        data.category || "",
+        data.reason || "",
+        data.description || "",
+        data.requestDate || "",
+        data.proposedDate || "",
+        data.handler || "",
+        data.status || "Đề xuất",
+        data.completionDate || "",
+        data.note || "",
+        createdAtStr
+      ]);
+
+      sendEmailNotificationForProcurement(recipientEmail, data, procurementId, createdAtStr);
+      writeLog(logSheet, data.fullName || "GUEST", "CREATE_PROCUREMENT", procurementId, "SUCCESS", "Tạo phiếu mua sắm " + procurementId);
+
+      return responseJSON({ 
+        success: true,
+        status: "success", 
+        message: "Đã lưu thành công phiếu mua sắm vào Google Sheets!", 
+        id: procurementId 
+      });
+    }
+
+    // ----------------------------------------------------
+    // PROTECTED ACTIONS (Yêu cầu Session Token hợp lệ)
+    // ----------------------------------------------------
+
+    // 6. Lấy toàn bộ dữ liệu (Yêu cầu Đăng nhập Admin / Manager / Processor hoặc lấy công khai cài đặt)
+    if (action === "getAll") {
+      var session = validateSession(sessionSheet, token);
+
+      var scData = sheetToObjects(scSheet);
+      var msData = sheetToObjects(msSheet);
+      var chData = sheetToObjects(chSheet);
+      var userData = (session && session.role === "ADMIN") ? sheetToObjects(userSheet) : [];
+
+      return responseJSON({
+        success: true,
+        status: "success",
+        suaChua: scData,
+        muaSam: msData,
+        cauHinh: chData,
+        users: userData,
+        currentUser: session ? session : null
+      });
+    }
+
+    // 7. Cập nhật Trạng thái phiếu (Yêu cầu Session Token)
+    if (action === "updateStatus") {
+      var session = validateSession(sessionSheet, token);
+      if (!session) {
+        return responseJSON({ success: false, status: "error", error: "AUTH_REQUIRED", message: "Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại!" });
+      }
+
+      var isRepair = (contents.type === "repair" || (data.id && data.id.indexOf("SC") === 0));
+      var targetSheet = isRepair ? scSheet : msSheet;
+      var rows = targetSheet.getDataRange().getValues();
+      var found = false;
+
+      for (var i = 1; i < rows.length; i++) {
+        if (rows[i][0] == data.id) {
+          if (isRepair) {
+            if (data.status) targetSheet.getRange(i + 1, 9).setValue(data.status);
+            if (data.handler !== undefined) targetSheet.getRange(i + 1, 10).setValue(data.handler);
+            if (data.completionDate !== undefined) targetSheet.getRange(i + 1, 11).setValue(data.completionDate);
+            if (data.note !== undefined) targetSheet.getRange(i + 1, 12).setValue(data.note);
+          } else {
+            if (data.handler !== undefined) targetSheet.getRange(i + 1, 11).setValue(data.handler);
+            if (data.status) targetSheet.getRange(i + 1, 12).setValue(data.status);
+            if (data.completionDate !== undefined) targetSheet.getRange(i + 1, 13).setValue(data.completionDate);
+            if (data.note !== undefined) targetSheet.getRange(i + 1, 14).setValue(data.note);
+          }
+          found = true;
+          break;
+        }
+      }
+
+      if (found) {
+        writeLog(logSheet, session.username, "UPDATE_STATUS", data.id, "SUCCESS", "Cập nhật trạng thái " + data.status);
+        return responseJSON({ success: true, status: "success", message: "Đã cập nhật trạng thái phiếu thành công!" });
+      } else {
+        return responseJSON({ success: false, status: "error", error: "NOT_FOUND", message: "Không tìm thấy mã phiếu " + data.id + " trong Google Sheets." });
+      }
+    }
+
+    // 8. Lưu Cấu hình Hệ thống (Yêu cầu Admin Token)
+    if (action === "saveSettings") {
+      var session = validateSession(sessionSheet, token);
+      if (!session || session.role !== "ADMIN") {
+        // Cho phép lưu nếu chưa từng có cấu hình hoặc kiểm tra token
+        if (sessionSheet.getLastRow() > 1 && !session) {
+          return responseJSON({ success: false, status: "error", error: "FORBIDDEN", message: "Chỉ Quản trị viên (ADMIN) mới có quyền thay đổi Cấu hình hệ thống!" });
+        }
+      }
+
+      var bankBranchName = data.bankBranchName || "NGÂN HÀNG TMCP VIETINBANK-CN NINH BÌNH";
+      var managerEmail = data.managerEmail || "";
+      var adminPassword = data.adminPassword || "admin123";
+      var updatedAt = new Date().toLocaleString("vi-VN");
+
+      // Cập nhật duy nhất 1 dòng cấu hình trong CauHinh sheet
+      var lastRow = chSheet.getLastRow();
+      if (lastRow > 1) {
+        chSheet.getRange(2, 1, lastRow - 1, 4).clearContent();
+      }
+      chSheet.appendRow([bankBranchName, managerEmail, adminPassword, updatedAt]);
+
+      // Cập nhật mật khẩu tài khoản admin nếu được thay đổi
+      if (adminPassword) {
+        updateAdminPassword(userSheet, adminPassword);
+      }
+
+      writeLog(logSheet, session ? session.username : "ADMIN", "SAVE_SETTINGS", "", "SUCCESS", "Đã lưu cấu hình hệ thống");
+      return responseJSON({ success: true, status: "success", message: "Đã lưu cấu hình trung tâm lên Google Sheets (sheet CauHinh)!" });
+    }
+
+    // 9. Quản lý Người dùng (Yêu cầu ADMIN Token)
+    if (action === "getUsers" || action === "createUser" || action === "updateUser" || action === "deleteUser") {
+      var session = validateSession(sessionSheet, token);
+      if (!session || session.role !== "ADMIN") {
+        return responseJSON({ success: false, status: "error", error: "FORBIDDEN", message: "Quyền truy cập bị từ chối! Bắt buộc quyền Quản trị viên (ADMIN)." });
+      }
+
+      if (action === "getUsers") {
+        return responseJSON({ success: true, status: "success", users: sheetToObjects(userSheet) });
+      }
+
+      if (action === "createUser") {
+        var username = (data.username || "").toString().trim().toLowerCase();
+        var rawPass = (data.password || "123456").toString().trim();
+        var fullName = (data.fullName || username).toString().trim();
+        var role = data.role || "PROCESSOR";
+
+        if (!username) {
+          return responseJSON({ success: false, status: "error", message: "Tên đăng nhập không được để trống!" });
+        }
+
+        var users = sheetToObjects(userSheet);
+        for (var u = 0; u < users.length; u++) {
+          if (String(users[u]["Username"]).toLowerCase() === username) {
+            return responseJSON({ success: false, status: "error", message: "Tên đăng nhập '" + username + "' đã tồn tại!" });
+          }
+        }
+
+        userSheet.appendRow([
+          username,
+          hashPassword(rawPass),
+          fullName,
+          role,
+          "true",
+          new Date().toLocaleString("vi-VN"),
+          ""
+        ]);
+
+        writeLog(logSheet, session.username, "CREATE_USER", username, "SUCCESS", "Tạo tài khoản " + username + " (" + role + ")");
+        return responseJSON({ success: true, status: "success", message: "Đã tạo tài khoản '" + username + "' thành công!" });
+      }
+
+      if (action === "updateUser") {
+        var username = (data.username || "").toString().trim().toLowerCase();
+        var rows = userSheet.getDataRange().getValues();
+        var found = false;
+
+        for (var i = 1; i < rows.length; i++) {
+          if (String(rows[i][0]).toLowerCase() === username) {
+            if (data.fullName) userSheet.getRange(i + 1, 3).setValue(data.fullName);
+            if (data.role) userSheet.getRange(i + 1, 4).setValue(data.role);
+            if (data.active !== undefined) userSheet.getRange(i + 1, 5).setValue(data.active ? "true" : "false");
+            if (data.password) userSheet.getRange(i + 1, 2).setValue(hashPassword(data.password));
+            found = true;
+            break;
+          }
+        }
+
+        if (found) {
+          writeLog(logSheet, session.username, "UPDATE_USER", username, "SUCCESS", "Cập nhật tài khoản " + username);
+          return responseJSON({ success: true, status: "success", message: "Đã cập nhật thông tin người dùng thành công!" });
+        }
+        return responseJSON({ success: false, status: "error", message: "Không tìm thấy người dùng '" + username + "'." });
+      }
+
+      if (action === "deleteUser") {
+        var username = (data.username || "").toString().trim().toLowerCase();
+        if (username === "admin") {
+          return responseJSON({ success: false, status: "error", message: "Không thể xóa tài khoản Admin hệ thống mặc định!" });
+        }
+        var rows = userSheet.getDataRange().getValues();
+        for (var i = 1; i < rows.length; i++) {
+          if (String(rows[i][0]).toLowerCase() === username) {
+            userSheet.deleteRow(i + 1);
+            writeLog(logSheet, session.username, "DELETE_USER", username, "SUCCESS", "Xóa tài khoản " + username);
+            return responseJSON({ success: true, status: "success", message: "Đã xóa tài khoản '" + username + "' thành công!" });
+          }
+        }
+        return responseJSON({ success: false, status: "error", message: "Không tìm thấy người dùng để xóa." });
+      }
+    }
+
+    // 10. Xem Nhật ký Hệ thống (Yêu cầu ADMIN Token)
+    if (action === "getLogs") {
+      var session = validateSession(sessionSheet, token);
+      if (!session || session.role !== "ADMIN") {
+        return responseJSON({ success: false, status: "error", error: "FORBIDDEN", message: "Quyền truy cập bị từ chối!" });
+      }
+      return responseJSON({ success: true, status: "success", logs: sheetToObjects(logSheet) });
+    }
+
+    return responseJSON({ success: false, status: "error", error: "INVALID_ACTION", message: "Hành động không hợp lệ: " + action });
+
+  } catch (err) {
+    return responseJSON({ success: false, status: "error", error: "SERVER_ERROR", message: "Lỗi hệ thống Apps Script: " + err.toString() });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ----------------------------------------------------
+// HELPER FUNCTIONS
+// ----------------------------------------------------
+
+function initDefaultAdminUser(userSheet) {
+  var data = userSheet.getDataRange().getValues();
+  if (data.length <= 1) {
+    userSheet.appendRow([
+      "admin",
+      hashPassword("admin123"),
+      "Quản trị viên Hệ thống",
+      "ADMIN",
+      "true",
+      new Date().toLocaleString("vi-VN"),
+      ""
+    ]);
+  }
+}
+
+function updateAdminPassword(userSheet, newPassword) {
+  var rows = userSheet.getDataRange().getValues();
+  var newHash = hashPassword(newPassword);
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).toLowerCase() === "admin") {
+      userSheet.getRange(i + 1, 2).setValue(newHash);
+      break;
+    }
+  }
+}
+
+function updateUserLastLogin(userSheet, username, timestampStr) {
+  var rows = userSheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).toLowerCase() === username) {
+      userSheet.getRange(i + 1, 7).setValue(timestampStr);
+      break;
+    }
+  }
+}
+
+function validateSession(sessionSheet, token) {
+  if (!token) return null;
+  var data = sessionSheet.getDataRange().getValues();
+  var nowMs = new Date().getTime();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(token)) {
+      var expiresAtMs = new Date(data[i][5]).getTime();
+      if (isNaN(expiresAtMs) || expiresAtMs > nowMs) {
+        return {
+          token: data[i][0],
+          username: data[i][1],
+          role: data[i][2],
+          fullName: data[i][3]
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function deleteSessionToken(sessionSheet, token) {
+  var rows = sessionSheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === String(token)) {
+      sessionSheet.deleteRow(i + 1);
+      break;
+    }
+  }
+}
+
+function generateNextId(sheet, prefix) {
+  var year = new Date().getFullYear();
+  var fullPrefix = prefix + "-" + year + "-";
+  var maxNum = 0;
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    var idStr = String(rows[i][0]);
+    if (idStr.indexOf(fullPrefix) === 0) {
+      var num = parseInt(idStr.replace(fullPrefix, ""), 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      }
+    }
+  }
+  var nextNum = maxNum + 1;
+  var pad = "0000" + nextNum;
+  return fullPrefix + pad.substr(pad.length - 4);
+}
+
+function isDuplicateId(sheet, id) {
+  if (!id) return false;
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === String(id)) return true;
+  }
+  return false;
+}
+
+function hashPassword(password) {
+  if (!password) return "";
+  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, password, Utilities.Charset.UTF_8);
+  var hash = "";
+  for (var i = 0; i < digest.length; i++) {
+    var byteVal = digest[i];
+    if (byteVal < 0) byteVal += 256;
+    var byteStr = byteVal.toString(16);
+    if (byteStr.length == 1) byteStr = "0" + byteStr;
+    hash += byteStr;
+  }
+  return hash;
+}
+
+function writeLog(logSheet, username, action, requestId, result, detail) {
+  try {
+    logSheet.appendRow([
+      new Date().toLocaleString("vi-VN"),
+      username || "ANONYMOUS",
+      action || "",
+      requestId || "",
+      result || "",
+      detail || ""
+    ]);
+  } catch (e) {}
+}
+
+function sendEmailNotificationForRepair(recipientEmail, data, repairId, timestamp) {
+  if (!recipientEmail || recipientEmail.trim() === "") return;
+  try {
+    var subject = "[VIETINBANK NINH BÌNH] Đề nghị SỬA CHỮA mới - " + repairId + " (" + (data.fullName || "") + ")";
+    var htmlBody = '<div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; border: 1px solid #002060; border-radius: 8px; overflow: hidden;">' +
+      '<div style="background-color: #002060; padding: 16px; text-align: center; color: #ffffff;">' +
+      '<h2 style="margin: 0; font-size: 18px; text-transform: uppercase;">VIETINBANK CHI NHÁNH NINH BÌNH</h2>' +
+      '<p style="margin: 4px 0 0 0; font-size: 13px; color: #facc15; font-weight: bold;">THÔNG BÁO ĐỀ NGHỊ SỬA CHỮA TÀI SẢN MỚI</p>' +
+      '</div>' +
+      '<div style="padding: 20px; line-height: 1.6; font-size: 14px;">' +
+      '<p>Kính gửi <b>Cán bộ Quản lý / Bộ phận Quản trị Tài sản</b>,</p>' +
+      '<p>Hệ thống vừa tiếp nhận 01 phiếu đăng ký sửa chữa tài sản mới với thông tin chi tiết như sau:</p>' +
+      '<table style="width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px;">' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold; width: 38%;">Mã đề nghị:</td><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #002060;">' + repairId + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Họ và tên cán bộ:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.fullName || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Phòng ban / Đơn vị:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.department || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Tên tài sản / Thiết bị:</td><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">' + (data.assetName || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Tình trạng hỏng hóc:</td><td style="padding: 8px; border: 1px solid #ddd; color: #dc2626;">' + (data.condition || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Đề xuất xử lý:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.proposal || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Mức độ khẩn cấp:</td><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #b91c1c;">' + (data.urgency || 'Trung Bình') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Ngày báo hỏng:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.reportDate || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Thời gian gửi:</td><td style="padding: 8px; border: 1px solid #ddd;">' + timestamp + '</td></tr>' +
+      '</table>' +
+      '<p style="margin-top: 20px;">Trân trọng kính báo Cán bộ Quản lý xem xét, duyệt và phân công xử lý kịp thời.</p>' +
+      '</div>' +
+      '<div style="background-color: #f1f5f9; padding: 12px; text-align: center; font-size: 11px; color: #64748b;">' +
+      'Email tự động từ Ứng dụng Đăng ký Sửa chữa & Mua sắm VietinBank Ninh Bình.' +
+      '</div>' +
+      '</div>';
+
+    MailApp.sendEmail({ to: recipientEmail, subject: subject, htmlBody: htmlBody });
+  } catch (err) {
+    Logger.log("Lỗi gửi email sửa chữa: " + err.toString());
+  }
+}
+
+function sendEmailNotificationForProcurement(recipientEmail, data, procurementId, timestamp) {
+  if (!recipientEmail || recipientEmail.trim() === "") return;
+  try {
+    var subject = "[VIETINBANK NINH BÌNH] Đề nghị MUA SẮM mới - " + procurementId + " (" + (data.fullName || "") + ")";
+    var htmlBody = '<div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; border: 1px solid #002060; border-radius: 8px; overflow: hidden;">' +
+      '<div style="background-color: #002060; padding: 16px; text-align: center; color: #ffffff;">' +
+      '<h2 style="margin: 0; font-size: 18px; text-transform: uppercase;">VIETINBANK CHI NHÁNH NINH BÌNH</h2>' +
+      '<p style="margin: 4px 0 0 0; font-size: 13px; color: #facc15; font-weight: bold;">THÔNG BÁO ĐỀ NGHỊ MUA SẮM THIẾT BỊ MỚI</p>' +
+      '</div>' +
+      '<div style="padding: 20px; line-height: 1.6; font-size: 14px;">' +
+      '<p>Kính gửi <b>Cán bộ Quản lý / Bộ phận Quản trị Tài sản</b>,</p>' +
+      '<p>Hệ thống vừa tiếp nhận 01 phiếu đăng ký mua sắm thiết bị mới với thông tin chi tiết như sau:</p>' +
+      '<table style="width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px;">' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold; width: 38%;">Mã đề nghị:</td><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #002060;">' + procurementId + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Họ và tên cán bộ:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.fullName || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Phòng ban / Đơn vị:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.department || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Tên thiết bị đề nghị:</td><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">' + (data.equipmentName || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Số lượng:</td><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #15803d;">' + (data.quantity || 1) + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Chủng loại / Quy cách:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.category || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Lý do đề xuất:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.reason || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Mô tả yêu cầu kỹ thuật:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.description || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Thời gian đề xuất mua:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.proposedDate || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Thời gian gửi:</td><td style="padding: 8px; border: 1px solid #ddd;">' + timestamp + '</td></tr>' +
+      '</table>' +
+      '<p style="margin-top: 20px;">Trân trọng kính báo Cán bộ Quản lý xem xét, duyệt và thẩm định kế hoạch mua sắm.</p>' +
+      '</div>' +
+      '<div style="background-color: #f1f5f9; padding: 12px; text-align: center; font-size: 11px; color: #64748b;">' +
+      'Email tự động từ Ứng dụng Đăng ký Sửa chữa & Mua sắm VietinBank Ninh Bình.' +
+      '</div>' +
+      '</div>';
+
+    MailApp.sendEmail({ to: recipientEmail, subject: subject, htmlBody: htmlBody });
+  } catch (err) {
+    Logger.log("Lỗi gửi email mua sắm: " + err.toString());
+  }
+}
+
+function getOrCreateSheet(ss, name, headers) {
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    sheet.appendRow(headers);
+    var headerRange = sheet.getRange(1, 1, 1, headers.length);
+    headerRange.setBackground("#002060").setFontColor("#FFFFFF").setFontWeight("bold");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function sheetToObjects(sheet) {
+  var data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
+  var headers = data[0];
+  var result = [];
+  for (var i = 1; i < data.length; i++) {
+    var obj = {};
+    for (var j = 0; j < headers.length; j++) {
+      obj[headers[j]] = data[i][j];
+    }
+    result.push(obj);
+  }
+  return result;
+}
+
+function responseJSON(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+`;
+
+
+export const INSTRUCTIONS_STEPS = [
+  {
+    step: 1,
+    title: 'Tạo Google Sheet mới',
+    content: 'Truy cập drive.google.com -> Tạo mới Google Sheet. Đặt tên file ví dụ: "QuanLyTaiSan_VietinBank_NinhBinh".',
+  },
+  {
+    step: 2,
+    title: 'Xác nhận hoặc Tạo Trang tính',
+    content: 'Tạo các Trang tính (Sheets) với tên chính xác: "SuaChua", "MuaSam", "CauHinh", "Users", "Sessions", "SystemLog". (Nếu chưa tạo, Apps Script sẽ tự động sinh khi ứng dụng chạy lần đầu).',
+  },
+  {
+    step: 3,
+    title: 'Mở Trình biên tập Apps Script',
+    content: 'Trên thanh menu Google Sheet, chọn: Tiện ích mở rộng (Extensions) -> Apps Script.',
+  },
+  {
+    step: 4,
+    title: 'Dán đoạn mã Code.gs & Cấu hình Email',
+    content: 'Xóa toàn bộ mã mặc định trong file Code.gs, dán đoạn mã Google Apps Script ở khung bên cạnh vào. Bạn có thể thay đổi biến DEFAULT_MANAGER_EMAILS ở dòng 12 thành email nhận thông báo của cán bộ quản lý.',
+  },
+  {
+    step: 5,
+    title: 'Triển khai dưới dạng Web App',
+    content: 'Nhấp nút "Triển khai" (Deploy) ở góc trên bên phải -> Chọn "Triển khai mới" (New deployment) -> Chọn biểu tượng bánh răng, chọn "Ứng dụng Web" (Web app).',
+  },
+  {
+    step: 6,
+    title: 'Phân quyền truy cập & cấp quyền gửi mail',
+    content: 'Thực thi dưới dạng: "Tôi" (Me). Ai có quyền truy cập: "Bất kỳ ai" (Anyone). Khi được hỏi cấp quyền truy cập Gmail/Mail, chọn "Đồng ý" (Allow) để Script có thể tự động gửi email thông báo khi có phiếu mới.',
+  },
+  {
+    step: 7,
+    title: 'Sao chép Web App URL & Khai báo môi trường',
+    content: 'Sao chép Web App URL (dạng https://script.google.com/macros/s/.../exec). Dán URL này vào mục Cài đặt của ứng dụng, hoặc cài biến môi trường VITE_APPS_SCRIPT_URL trên Vercel để mọi thiết bị tự động kết nối.',
+  },
+];

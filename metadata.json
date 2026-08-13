@@ -1,0 +1,6 @@
+{
+  "name": "Hệ thống Quản lý Đăng ký Sửa chữa & Mua sắm Tài sản",
+  "description": "Ứng dụng web đăng ký sửa chữa và mua sắm tài sản nội bộ ngân hàng, kết nối lưu trữ dữ liệu Google Sheets qua Google Apps Script.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
