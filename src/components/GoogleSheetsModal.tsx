@@ -15,6 +15,7 @@ import {
 import { GOOGLE_APPS_SCRIPT_CODE, INSTRUCTIONS_STEPS } from '../utils/appsScriptCode';
 import { testGoogleAppsScriptConnection, saveSettingsToGoogleSheets } from '../services/sheetsApi';
 import { AppSettings } from '../types';
+import { DEFAULT_APPS_SCRIPT_URL } from '../constants/config';
 
 interface GoogleSheetsModalProps {
   settings: AppSettings;
@@ -30,7 +31,7 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
   showToast,
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
-  const [inputUrl, setInputUrl] = useState<string>(settings.webAppUrl || '');
+  const [inputUrl, setInputUrl] = useState<string>(settings.webAppUrl || DEFAULT_APPS_SCRIPT_URL);
   const [managerEmail, setManagerEmail] = useState<string>(settings.managerEmail || '');
   const [testing, setTesting] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);

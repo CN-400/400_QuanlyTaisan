@@ -46,44 +46,50 @@ export default function App() {
 
   useEffect(() => {
     const initApp = async () => {
-      // 1. Check URL parameters for pre-configured URL (e.g., ?webAppUrl=...)
-      const urlConfig = checkAndApplyUrlConfig();
+      try {
+        // 1. Check URL parameters for pre-configured URL (e.g., ?webAppUrl=...)
+        const urlConfig = checkAndApplyUrlConfig();
 
-      // 2. Sync business configuration from Google Sheets (sheet CauHinh) - CENTRAL SOURCE OF TRUTH
-      const syncedSettings = await syncSettingsFromGoogleSheets(urlConfig);
+        // 2. Sync business configuration from Google Sheets (sheet CauHinh) - CENTRAL SOURCE OF TRUTH
+        const syncedSettings = await syncSettingsFromGoogleSheets(urlConfig);
 
-      // 3. Validate existing session token if present
-      if (syncedSettings.webAppUrl && syncedSettings.token) {
-        const valRes = await validateSessionApi(syncedSettings.webAppUrl, syncedSettings.token);
-        if (valRes.success && valRes.data?.user) {
-          setIsAdminLoggedIn(true);
-          syncedSettings.currentUser = valRes.data.user;
-        } else {
-          // Token expired or invalidated
-          setIsAdminLoggedIn(false);
-          delete syncedSettings.token;
-          delete syncedSettings.currentUser;
-        }
-      }
-
-      setSettings(syncedSettings);
-      saveAppSettings(syncedSettings);
-
-      // 4. Fetch all requests from Google Sheets if Web App URL is present
-      if (syncedSettings.webAppUrl) {
-        const res = await fetchAllFromGoogleSheets(syncedSettings);
-        if (res.success && res.data) {
-          if (Array.isArray(res.data.suaChua) && res.data.suaChua.length > 0) {
-            const parsedRepairs = parseRepairRows(res.data.suaChua);
-            setRepairRequests(parsedRepairs);
-            saveRepairRequests(parsedRepairs);
-          }
-          if (Array.isArray(res.data.muaSam) && res.data.muaSam.length > 0) {
-            const parsedProcurements = parseProcurementRows(res.data.muaSam);
-            setProcurementRequests(parsedProcurements);
-            saveProcurementRequests(parsedProcurements);
+        // 3. Validate existing session token if present
+        if (syncedSettings.webAppUrl && syncedSettings.token) {
+          const valRes = await validateSessionApi(syncedSettings.webAppUrl, syncedSettings.token);
+          if (valRes.success && valRes.data?.user) {
+            setIsAdminLoggedIn(true);
+            syncedSettings.currentUser = valRes.data.user;
+          } else {
+            // Token expired or invalidated
+            setIsAdminLoggedIn(false);
+            delete syncedSettings.token;
+            delete syncedSettings.currentUser;
           }
         }
+
+        setSettings(syncedSettings);
+        saveAppSettings(syncedSettings);
+
+        // 4. Fetch all requests from Google Sheets
+        if (syncedSettings.webAppUrl) {
+          const res = await fetchAllFromGoogleSheets(syncedSettings);
+          if (res.success && res.data) {
+            if (Array.isArray(res.data.suaChua) && res.data.suaChua.length > 0) {
+              const parsedRepairs = parseRepairRows(res.data.suaChua);
+              setRepairRequests(parsedRepairs);
+              saveRepairRequests(parsedRepairs);
+            }
+            if (Array.isArray(res.data.muaSam) && res.data.muaSam.length > 0) {
+              const parsedProcurements = parseProcurementRows(res.data.muaSam);
+              setProcurementRequests(parsedProcurements);
+              saveProcurementRequests(parsedProcurements);
+            }
+          } else if (!res.success) {
+            console.warn('Google Sheets fetch failed:', res.message);
+          }
+        }
+      } catch (err) {
+        console.warn('Initialization offline or network error:', err);
       }
     };
 

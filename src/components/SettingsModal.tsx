@@ -3,6 +3,7 @@ import { X, Settings, RotateCcw, Building2, Link2, Mail, Lock, LogOut, ShieldChe
 import { AppSettings } from '../types';
 import { resetDataToSample } from '../services/storage';
 import { saveSettingsToGoogleSheets } from '../services/sheetsApi';
+import { DEFAULT_APPS_SCRIPT_URL } from '../constants/config';
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -24,18 +25,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [bankBranchName, setBankBranchName] = useState<string>(
     settings.bankBranchName || 'NGÂN HÀNG TMCP VIETINBANK-CN NINH BÌNH'
   );
-  const [webAppUrl, setWebAppUrl] = useState<string>(settings.webAppUrl || '');
+  const [webAppUrl] = useState<string>(settings.webAppUrl || DEFAULT_APPS_SCRIPT_URL);
   const [managerEmail, setManagerEmail] = useState<string>(settings.managerEmail || '');
   const [adminPassword, setAdminPassword] = useState<string>(settings.adminPassword || 'admin123');
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
   const handleCopyMobileLink = () => {
-    if (!webAppUrl.trim()) {
-      showToast('Vui lòng nhập Google Apps Script Web App URL trước!', 'error');
-      return;
-    }
+    const activeUrl = webAppUrl || DEFAULT_APPS_SCRIPT_URL;
     const origin = window.location.origin;
-    const shareUrl = `${origin}/?webAppUrl=${encodeURIComponent(webAppUrl.trim())}&email=${encodeURIComponent(managerEmail.trim())}`;
+    const shareUrl = `${origin}/?webAppUrl=${encodeURIComponent(activeUrl)}&email=${encodeURIComponent(managerEmail.trim())}`;
     
     if (navigator.clipboard) {
       navigator.clipboard.writeText(shareUrl);
@@ -58,28 +56,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const updatedSettings: AppSettings = {
       ...settings,
       bankBranchName: bankBranchName.trim(),
-      webAppUrl: webAppUrl.trim(),
+      webAppUrl: (webAppUrl || DEFAULT_APPS_SCRIPT_URL).trim(),
       managerEmail: managerEmail.trim(),
       adminPassword: adminPassword.trim(),
     };
 
     // Tự động lưu lên Google Sheets (sheet CauHinh)
-    if (updatedSettings.webAppUrl) {
-      const result = await saveSettingsToGoogleSheets(updatedSettings);
-      if (result.success) {
-        await onSaveSettings(updatedSettings);
-        setSaving(false);
-        showToast('Đã lưu & đồng bộ cấu hình thành công lên Google Sheets (sheet CauHinh)!', 'success');
-        onClose();
-      } else {
-        setSaving(false);
-        showToast('Không thể lưu cấu hình vào Google Sheets: ' + (result.message || 'Lỗi kết nối'), 'error');
-      }
-    } else {
+    const result = await saveSettingsToGoogleSheets(updatedSettings);
+    if (result.success) {
       await onSaveSettings(updatedSettings);
       setSaving(false);
-      showToast('Đã lưu cấu hình tạm thời cục bộ. Vui lòng nhập Web App URL để đồng bộ Google Sheets!', 'info');
+      showToast('Đã lưu & đồng bộ cấu hình nghiệp vụ thành công lên Google Sheets (sheet CauHinh)!', 'success');
       onClose();
+    } else {
+      setSaving(false);
+      showToast('Không thể lưu cấu hình vào Google Sheets: ' + (result.message || 'Lỗi kết nối'), 'error');
     }
   };
 
@@ -130,45 +121,47 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 flex items-center space-x-1">
-              <Link2 className="w-3.5 h-3.5 text-blue-600" />
-              <span>Google Apps Script Web App URL</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center space-x-1">
+                <Link2 className="w-3.5 h-3.5 text-blue-600" />
+                <span>Google Apps Script Backend URL</span>
+              </label>
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded border border-emerald-300 flex items-center space-x-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span>Hệ Thống Mặc Định</span>
+              </span>
+            </div>
             <input
               type="text"
-              value={webAppUrl}
-              onChange={(e) => setWebAppUrl(e.target.value)}
-              placeholder="https://script.google.com/macros/s/.../exec"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-600 outline-none font-mono text-xs"
+              value={webAppUrl || DEFAULT_APPS_SCRIPT_URL}
+              readOnly
+              disabled
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-gray-100 text-gray-600 font-mono text-xs cursor-not-allowed select-all"
             />
-            {(webAppUrl.includes('/macros/library/') || webAppUrl.includes('/edit')) && (
-              <p className="mt-1.5 text-xs text-amber-700 font-semibold bg-amber-50 p-2 rounded-lg border border-amber-200">
-                ⚠️ Bạn đang nhập link Thư viện (Library) hoặc Editor. Vui lòng bấm "Triển khai" &gt; "Ứng dụng Web" trong Apps Script và copy link đuôi <code>/exec</code>!
-              </p>
-            )}
+            <p className="mt-1 text-[11px] text-gray-500">
+              URL Backend đã được thiết lập cố định toàn hệ thống. Tất cả thiết bị (PC, Phone, Tablet) truy cập WebApp sẽ tự động kết nối trung tâm.
+            </p>
 
             {/* Mobile Connectivity Sync Box */}
             <div className="mt-2 p-3 bg-blue-50/80 rounded-xl border border-blue-200 text-blue-950 space-y-2">
               <div className="flex items-start space-x-2">
                 <Smartphone className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <div className="text-[11px] leading-tight">
-                  <p className="font-bold text-blue-900">Kết nối Tự động trên Điện thoại & Tất cả thiết bị:</p>
+                  <p className="font-bold text-blue-900">Kết nối Tự động trên Mọi Thiết Bị:</p>
                   <p className="text-blue-700 mt-0.5">
-                    Khi Admin bấm <strong>"Lưu Thay Đổi"</strong>, máy chủ sẽ tự lưu cấu hình kết nối. Điện thoại chỉ cần truy cập web ứng dụng là sẽ tự kết nối thành công!
+                    Hệ thống tự động đồng bộ tất cả cấu hình nghiệp vụ từ Google Sheets (CauHinh). Điện thoại và máy tính mới không cần thiết lập lại!
                   </p>
                 </div>
               </div>
 
-              {webAppUrl && (
-                <button
-                  type="button"
-                  onClick={handleCopyMobileLink}
-                  className="w-full py-1.5 px-3 bg-white hover:bg-blue-100 text-blue-800 font-bold rounded-lg text-xs border border-blue-300 transition-colors flex items-center justify-center space-x-1.5 shadow-sm"
-                >
-                  <Share2 className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Sao chép Link chia sẻ kèm cấu hình sẵn cho Điện thoại</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleCopyMobileLink}
+                className="w-full py-1.5 px-3 bg-white hover:bg-blue-100 text-blue-800 font-bold rounded-lg text-xs border border-blue-300 transition-colors flex items-center justify-center space-x-1.5 shadow-sm"
+              >
+                <Share2 className="w-3.5 h-3.5 text-blue-600" />
+                <span>Sao chép Link chia sẻ WebApp cho Cán bộ</span>
+              </button>
             </div>
           </div>
 

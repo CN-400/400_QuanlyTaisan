@@ -1,5 +1,6 @@
 import { AppSettings, ProcurementRequest, RepairRequest } from '../types';
 import { SAMPLE_PROCUREMENT_REQUESTS, SAMPLE_REPAIR_REQUESTS } from '../constants/data';
+import { DEFAULT_APPS_SCRIPT_URL, isValidAppsScriptUrl } from '../constants/config';
 import { fetchSettingsFromGoogleSheets, saveSettingsToGoogleSheets } from './sheetsApi';
 
 const REPAIR_STORAGE_KEY = 'vtb_asset_repair_requests_v1';
@@ -7,41 +8,60 @@ const PROCUREMENT_STORAGE_KEY = 'vtb_asset_procurement_requests_v1';
 const SETTINGS_STORAGE_KEY = 'vtb_asset_app_settings_v1';
 
 /**
- * Get system bootstrap Apps Script Web App URL from environment or localStorage
+ * Get system bootstrap Apps Script Web App URL from environment, fallback constant or localStorage
+ * Priority:
+ * 1. VITE_APPS_SCRIPT_URL
+ * 2. DEFAULT_APPS_SCRIPT_URL
+ * 3. localStorage webAppUrl (if valid)
+ * ALWAYS returns a non-empty valid URL.
  */
 export const getBootstrapWebAppUrl = (): string => {
+  // 1. Environment variable VITE_APPS_SCRIPT_URL
   const envUrl = (import.meta as any).env?.VITE_APPS_SCRIPT_URL || '';
-  if (envUrl && envUrl.trim()) {
+  if (envUrl && isValidAppsScriptUrl(envUrl)) {
     return envUrl.trim();
   }
+
+  // 2. Official default constant
+  if (DEFAULT_APPS_SCRIPT_URL && isValidAppsScriptUrl(DEFAULT_APPS_SCRIPT_URL)) {
+    return DEFAULT_APPS_SCRIPT_URL.trim();
+  }
+
+  // 3. localStorage webAppUrl if valid
   try {
     const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (parsed.webAppUrl) return parsed.webAppUrl;
+      if (parsed.webAppUrl && isValidAppsScriptUrl(parsed.webAppUrl)) {
+        return parsed.webAppUrl.trim();
+      }
     }
   } catch (e) {}
-  return '';
+
+  return DEFAULT_APPS_SCRIPT_URL;
 };
 
 export const getAppSettings = (): AppSettings => {
-  const defaultUrl = getBootstrapWebAppUrl();
+  const bootstrapUrl = getBootstrapWebAppUrl();
   try {
     const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
+      const validUrl = (parsed.webAppUrl && isValidAppsScriptUrl(parsed.webAppUrl))
+        ? parsed.webAppUrl.trim()
+        : bootstrapUrl;
       return {
         adminPassword: 'admin123',
         bankBranchName: 'NGÂN HÀNG TMCP VIETINBANK-CN NINH BÌNH',
-        webAppUrl: defaultUrl || parsed.webAppUrl || '',
         ...parsed,
+        webAppUrl: validUrl,
       };
     }
   } catch (e) {
     console.error('Failed to parse app settings from localStorage:', e);
   }
   return {
-    webAppUrl: defaultUrl,
+    webAppUrl: bootstrapUrl,
     autoSync: true,
     bankBranchName: 'NGÂN HÀNG TMCP VIETINBANK-CN NINH BÌNH',
     managerEmail: '',
@@ -54,8 +74,11 @@ export const getAppSettings = (): AppSettings => {
  * Google Sheets is the SINGLE SOURCE OF TRUTH for settings across all devices.
  */
 export const syncSettingsFromGoogleSheets = async (currentSettings: AppSettings): Promise<AppSettings> => {
-  const url = currentSettings.webAppUrl || getBootstrapWebAppUrl();
-  if (!url) return currentSettings;
+  const url = (currentSettings.webAppUrl && isValidAppsScriptUrl(currentSettings.webAppUrl))
+    ? currentSettings.webAppUrl.trim()
+    : getBootstrapWebAppUrl();
+
+  if (!isValidAppsScriptUrl(url)) return currentSettings;
 
   try {
     const res = await fetchSettingsFromGoogleSheets(url);
@@ -65,7 +88,7 @@ export const syncSettingsFromGoogleSheets = async (currentSettings: AppSettings)
         webAppUrl: url,
         bankBranchName: res.data.bankBranchName || currentSettings.bankBranchName || 'NGÂN HÀNG TMCP VIETINBANK-CN NINH BÌNH',
         managerEmail: res.data.managerEmail !== undefined ? res.data.managerEmail : currentSettings.managerEmail,
-        adminPassword: res.data.adminPassword || currentSettings.adminPassword || 'admin123',
+        adminPassword: currentSettings.adminPassword || 'admin123',
       };
       // Update local cache
       try {
@@ -81,22 +104,31 @@ export const syncSettingsFromGoogleSheets = async (currentSettings: AppSettings)
 };
 
 export const saveAppSettings = async (settings: AppSettings): Promise<AppSettings> => {
+  const validUrl = (settings.webAppUrl && isValidAppsScriptUrl(settings.webAppUrl))
+    ? settings.webAppUrl.trim()
+    : getBootstrapWebAppUrl();
+
+  const settingsToSave: AppSettings = {
+    ...settings,
+    webAppUrl: validUrl,
+  };
+
   try {
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settingsToSave));
   } catch (e) {
     console.warn('Could not write to localStorage:', e);
   }
 
   // Save directly to Google Sheets (sheet CauHinh)
-  if (settings.webAppUrl) {
+  if (settingsToSave.webAppUrl) {
     try {
-      await saveSettingsToGoogleSheets(settings);
+      await saveSettingsToGoogleSheets(settingsToSave);
     } catch (err) {
       console.warn('Failed to save settings to Google Sheets CauHinh sheet:', err);
     }
   }
 
-  return settings;
+  return settingsToSave;
 };
 
 /**
@@ -110,10 +142,10 @@ export const checkAndApplyUrlConfig = (): AppSettings => {
   const paramUrl = urlParams.get('webAppUrl') || urlParams.get('scriptUrl') || urlParams.get('url');
   const paramEmail = urlParams.get('managerEmail') || urlParams.get('email');
 
-  if (paramUrl || paramEmail) {
+  if ((paramUrl && isValidAppsScriptUrl(paramUrl)) || paramEmail) {
     const updated: AppSettings = {
       ...current,
-      webAppUrl: paramUrl ? paramUrl.trim() : current.webAppUrl,
+      webAppUrl: (paramUrl && isValidAppsScriptUrl(paramUrl)) ? paramUrl.trim() : current.webAppUrl,
       managerEmail: paramEmail ? paramEmail.trim() : current.managerEmail,
     };
     saveAppSettings(updated);

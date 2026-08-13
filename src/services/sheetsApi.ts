@@ -1,4 +1,5 @@
 import { AppSettings, ProcurementRequest, RepairRequest, RequestStatus } from '../types';
+import { DEFAULT_APPS_SCRIPT_URL, isValidAppsScriptUrl } from '../constants/config';
 
 export interface SyncResult {
   success: boolean;
@@ -7,9 +8,15 @@ export interface SyncResult {
 }
 
 /**
-  * Helper to safely parse JSON response or detect HTML/Vercel error pages
+ * Helper to safely parse JSON response or detect empty/HTML/Vercel error pages
  */
 function parseJsonResponse(text: string): { isJson: boolean; data?: any; errorMsg?: string } {
+  if (!text || !text.trim()) {
+    return {
+      isJson: false,
+      errorMsg: 'Google Apps Script không trả về dữ liệu (Phản hồi rỗng).',
+    };
+  }
   const trimmed = text.trim();
   if (
     trimmed.toLowerCase().startsWith('<!doctype') ||
@@ -39,7 +46,7 @@ function parseJsonResponse(text: string): { isJson: boolean; data?: any; errorMs
  * Direct client-side fetch to Google Apps Script as fallback
  */
 async function fetchDirectFromAppsScript(webAppUrl: string, action: 'GET' | 'POST', payload?: any): Promise<any> {
-  let url = webAppUrl.trim();
+  let url = (webAppUrl && isValidAppsScriptUrl(webAppUrl)) ? webAppUrl.trim() : DEFAULT_APPS_SCRIPT_URL;
   if (action === 'GET') {
     const targetUrl = new URL(url);
     targetUrl.searchParams.append('action', 'getAll');
@@ -71,12 +78,10 @@ async function fetchDirectFromAppsScript(webAppUrl: string, action: 'GET' | 'POS
  * Execute request with server proxy, falling back to direct browser fetch if proxy is unavailable (e.g. static Vercel build)
  */
 async function executeSheetsApiCall(webAppUrl: string, isPost: boolean, payload?: any): Promise<any> {
-  const urlTrimmed = webAppUrl ? webAppUrl.trim() : '';
+  let urlTrimmed = (webAppUrl && isValidAppsScriptUrl(webAppUrl)) ? webAppUrl.trim() : DEFAULT_APPS_SCRIPT_URL;
 
   if (urlTrimmed.includes('/macros/library/') || urlTrimmed.includes('/edit')) {
-    throw new Error(
-      'URL không đúng định dạng Web App! Vui lòng bấm "Triển khai (Deploy)" -> "Ứng dụng Web" trong Apps Script và copy link dạng https://script.google.com/macros/s/.../exec'
-    );
+    urlTrimmed = DEFAULT_APPS_SCRIPT_URL;
   }
 
   // 1. Try server proxy endpoint first
@@ -374,10 +379,7 @@ export async function updateStatusInGoogleSheets(
  * Fetch configuration directly from Google Sheets (sheet CauHinh)
  */
 export async function fetchSettingsFromGoogleSheets(webAppUrl: string): Promise<SyncResult> {
-  const url = webAppUrl ? webAppUrl.trim() : '';
-  if (!url) {
-    return { success: false, message: 'Chưa cấu hình Google Apps Script Web App URL.' };
-  }
+  const url = (webAppUrl && isValidAppsScriptUrl(webAppUrl)) ? webAppUrl.trim() : DEFAULT_APPS_SCRIPT_URL;
   try {
     const result = await executeSheetsApiCall(url, true, {
       action: 'getSettings',
@@ -389,14 +391,12 @@ export async function fetchSettingsFromGoogleSheets(webAppUrl: string): Promise<
         const row = cauHinh[0];
         const bankBranchName = row['Tên đơn vị'] || row.bankBranchName || '';
         const managerEmail = row['Email Quản lý'] || row.managerEmail || '';
-        const adminPassword = row['Mật khẩu Admin'] || row.adminPassword || '';
         return {
           success: true,
           message: 'Tải cấu hình thành công từ Google Sheets (CauHinh)!',
           data: {
             bankBranchName,
             managerEmail,
-            adminPassword,
           },
         };
       }
