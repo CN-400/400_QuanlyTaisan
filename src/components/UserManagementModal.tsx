@@ -29,6 +29,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<UserRole>('PROCESSOR');
   const [active, setActive] = useState(true);
+  const [canEdit, setCanEdit] = useState<boolean>(true);
+  const [canDelete, setCanDelete] = useState<boolean>(true);
+  const [canPrint, setCanPrint] = useState<boolean>(true);
 
   // Temp password modal after reset
   const [resetModalData, setResetModalData] = useState<{
@@ -76,6 +79,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setFullName('');
     setRole('PROCESSOR');
     setActive(true);
+    setCanEdit(true);
+    setCanDelete(true);
+    setCanPrint(true);
     setShowForm(true);
   };
 
@@ -86,6 +92,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setFullName(u.fullName || '');
     setRole(u.role || 'PROCESSOR');
     setActive(u.active !== false);
+    setCanEdit(u.canEdit !== false);
+    setCanDelete(u.canDelete !== false);
+    setCanPrint(u.canPrint !== false);
     setShowForm(true);
   };
 
@@ -136,6 +145,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           fullName: fullName.trim(),
           role,
           active,
+          canEdit,
+          canDelete,
+          canPrint,
         },
         settings,
         token
@@ -162,6 +174,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           fullName: fullName.trim(),
           role,
           active,
+          canEdit,
+          canDelete,
+          canPrint,
         },
         settings,
         token
@@ -393,6 +408,44 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 </div>
               </div>
 
+              {/* SECTION: Quyền Thao tác Nhạy cảm */}
+              <div className="pt-3 border-t border-gray-200">
+                <label className="block font-bold text-blue-900 mb-2 uppercase text-[11px] tracking-wider">
+                  Quyền thao tác nhạy cảm (Cán bộ Xử lý & Quản lý)
+                </label>
+                <div className="grid grid-cols-3 gap-3 bg-blue-50/60 p-3 rounded-xl border border-blue-200 text-xs">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={canEdit}
+                      onChange={(e) => setCanEdit(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded border-gray-300"
+                    />
+                    <span className="font-bold text-gray-800">Cho phép CHỈNH SỬA</span>
+                  </label>
+
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={canDelete}
+                      onChange={(e) => setCanDelete(e.target.checked)}
+                      className="w-4 h-4 text-red-600 rounded border-gray-300"
+                    />
+                    <span className="font-bold text-red-800">Cho phép XÓA</span>
+                  </label>
+
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={canPrint}
+                      onChange={(e) => setCanPrint(e.target.checked)}
+                      className="w-4 h-4 text-amber-600 rounded border-gray-300"
+                    />
+                    <span className="font-bold text-amber-900">Cho phép IN PHIẾU</span>
+                  </label>
+                </div>
+              </div>
+
               <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-200">
                 <button
                   type="button"
@@ -435,6 +488,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                       <th className="py-3 px-4 font-bold">Username</th>
                       <th className="py-3 px-4 font-bold">Họ và Tên</th>
                       <th className="py-3 px-4 font-bold">Vai trò (Role)</th>
+                      <th className="py-3 px-4 font-bold">Quyền Nhạy Cảm</th>
                       <th className="py-3 px-4 font-bold">Trạng thái</th>
                       <th className="py-3 px-4 font-bold text-center">Thao tác</th>
                     </tr>
@@ -461,6 +515,13 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                               <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] ${roleBadge}`}>
                                 {u.role || 'PROCESSOR'}
                               </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center space-x-1 text-[10px]">
+                                <span className={`px-1.5 py-0.5 rounded font-bold ${u.canEdit !== false ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-400 line-through'}`}>Sửa</span>
+                                <span className={`px-1.5 py-0.5 rounded font-bold ${u.canDelete !== false ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-400 line-through'}`}>Xóa</span>
+                                <span className={`px-1.5 py-0.5 rounded font-bold ${u.canPrint !== false ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-400 line-through'}`}>In</span>
+                              </div>
                             </td>
                             <td className="py-3 px-4">
                               {u.active !== false ? (

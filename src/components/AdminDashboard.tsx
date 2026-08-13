@@ -28,7 +28,8 @@ import { DEPARTMENTS, STATUS_OPTIONS, URGENCY_LEVELS } from '../constants/data';
 import { OfficerUpdateModal } from './OfficerUpdateModal';
 import { PrintTicketModal } from './PrintTicketModal';
 import { UserManagementModal } from './UserManagementModal';
-import { fetchAllFromGoogleSheets, updateStatusInGoogleSheets } from '../services/sheetsApi';
+import { ActionPermissionLoginModal } from './ActionPermissionLoginModal';
+import { fetchAllFromGoogleSheets, updateStatusInGoogleSheets, deleteRecordInGoogleSheets } from '../services/sheetsApi';
 import { saveProcurementRequests, saveRepairRequests } from '../services/storage';
 
 interface AdminDashboardProps {
@@ -72,7 +73,63 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     request: RepairRequest | ProcurementRequest;
   } | null>(null);
 
+  // Sensitive Action Permission Lock Modal State
+  const [actionPermissionModal, setActionPermissionModal] = useState<{
+    action: 'EDIT' | 'DELETE' | 'PRINT';
+    type: 'repair' | 'procurement';
+    request: RepairRequest | ProcurementRequest;
+  } | null>(null);
+
   const [syncing, setSyncing] = useState<boolean>(false);
+
+  // Trigger Action Permission Modal
+  const handleTriggerAction = (
+    action: 'EDIT' | 'DELETE' | 'PRINT',
+    type: 'repair' | 'procurement',
+    request: RepairRequest | ProcurementRequest
+  ) => {
+    setActionPermissionModal({
+      action,
+      type,
+      request,
+    });
+  };
+
+  const handleActionAuthorized = async (authUser: { username: string; fullName: string; permission: string }) => {
+    if (!actionPermissionModal) return;
+
+    const { action, type, request } = actionPermissionModal;
+    setActionPermissionModal(null); // Close permission modal
+
+    if (action === 'EDIT') {
+      setUpdatingItem({ type, request });
+    } else if (action === 'PRINT') {
+      setPrintingItem({ type, request });
+    } else if (action === 'DELETE') {
+      if (window.confirm(`XÁC NHẬN XÓA: Bạn có chắc chắn muốn xóa vĩnh viễn hồ sơ [${request.id}] không?`)) {
+        if (type === 'repair') {
+          const updated = repairRequests.filter((r) => r.id !== request.id);
+          setRepairRequests(updated);
+          saveRepairRequests(updated);
+        } else {
+          const updated = procurementRequests.filter((p) => p.id !== request.id);
+          setProcurementRequests(updated);
+          saveProcurementRequests(updated);
+        }
+
+        if (settings.webAppUrl) {
+          const res = await deleteRecordInGoogleSheets(type, request.id, settings, authUser.username);
+          if (res.success) {
+            showToast(`Đã xóa thành công hồ sơ ${request.id} khỏi hệ thống và Google Sheets.`, 'success');
+          } else {
+            showToast(`Đã xóa local, Google Sheets phản hồi: ${res.message}`, 'info');
+          }
+        } else {
+          showToast(`Đã xóa hồ sơ ${request.id}`, 'info');
+        }
+      }
+    }
+  };
 
   // Filter repair requests
   const filteredRepairs = repairRequests.filter((r) => {
@@ -641,25 +698,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <td className="py-3 px-4 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center space-x-1">
                             <button
-                              onClick={() => setUpdatingItem({ type: 'repair', request: item })}
+                              onClick={() => handleTriggerAction('EDIT', 'repair', item)}
                               className="p-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
-                              title="Cập nhật trạng thái xử lý"
+                              title="Cập nhật trạng thái (Yêu cầu đăng nhập xác thực quyền)"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
 
                             <button
-                              onClick={() => setPrintingItem({ type: 'repair', request: item })}
+                              onClick={() => handleTriggerAction('PRINT', 'repair', item)}
                               className="p-1.5 bg-amber-50 text-amber-800 hover:bg-amber-100 rounded-lg transition-colors"
-                              title="In phiếu đề nghị"
+                              title="In phiếu đề nghị (Yêu cầu đăng nhập xác thực quyền)"
                             >
                               <Printer className="w-4 h-4" />
                             </button>
 
                             <button
-                              onClick={() => handleDelete('repair', item.id)}
+                              onClick={() => handleTriggerAction('DELETE', 'repair', item)}
                               className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                              title="Xóa đề nghị"
+                              title="Xóa đề nghị (Yêu cầu đăng nhập xác thực quyền)"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -743,25 +800,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <td className="py-3 px-4 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center space-x-1">
                             <button
-                              onClick={() => setUpdatingItem({ type: 'procurement', request: item })}
+                              onClick={() => handleTriggerAction('EDIT', 'procurement', item)}
                               className="p-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
-                              title="Cập nhật trạng thái xử lý"
+                              title="Cập nhật trạng thái (Yêu cầu đăng nhập xác thực quyền)"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
 
                             <button
-                              onClick={() => setPrintingItem({ type: 'procurement', request: item })}
+                              onClick={() => handleTriggerAction('PRINT', 'procurement', item)}
                               className="p-1.5 bg-amber-50 text-amber-800 hover:bg-amber-100 rounded-lg transition-colors"
-                              title="In phiếu đề nghị"
+                              title="In phiếu đề nghị (Yêu cầu đăng nhập xác thực quyền)"
                             >
                               <Printer className="w-4 h-4" />
                             </button>
 
                             <button
-                              onClick={() => handleDelete('procurement', item.id)}
+                              onClick={() => handleTriggerAction('DELETE', 'procurement', item)}
                               className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                              title="Xóa đề nghị"
+                              title="Xóa đề nghị (Yêu cầu đăng nhập xác thực quyền)"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -776,6 +833,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
       </div>
+
+      {/* ACTION PERMISSION LOGIN MODAL */}
+      {actionPermissionModal && (
+        <ActionPermissionLoginModal
+          action={actionPermissionModal.action}
+          targetId={actionPermissionModal.request.id}
+          settings={settings}
+          onAuthorized={handleActionAuthorized}
+          onClose={() => setActionPermissionModal(null)}
+          showToast={showToast}
+        />
+      )}
     </div>
   );
 };

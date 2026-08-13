@@ -525,11 +525,99 @@ export async function fetchUsersFromGoogleSheets(settings: AppSettings, token: s
       token,
     });
     if (result && (result.success || result.status === 'success')) {
-      return { success: true, message: 'Tải danh sách người dùng thành công', data: result.users || [] };
+      const rawUsers = result.users || [];
+      const parsedUsers = rawUsers.map((u: any) => ({
+        username: String(u.Username || u.username || ''),
+        fullName: String(u.FullName || u.fullName || ''),
+        role: (u.Role || u.role || 'PROCESSOR') as any,
+        active: String(u.Active || u.active).toLowerCase() !== 'false',
+        mustChangePassword: String(u.MustChangePassword || u.mustChangePassword).toLowerCase() === 'true',
+        canEdit: String(u.CanEdit !== undefined ? u.CanEdit : u.canEdit).toLowerCase() === 'true' || String(u.CanEdit) === '1' || (u.role || u.Role) === 'ADMIN',
+        canDelete: String(u.CanDelete !== undefined ? u.CanDelete : u.canDelete).toLowerCase() === 'true' || String(u.CanDelete) === '1' || (u.role || u.Role) === 'ADMIN',
+        canPrint: String(u.CanPrint !== undefined ? u.CanPrint : u.canPrint).toLowerCase() === 'true' || String(u.CanPrint) === '1' || (u.role || u.Role) === 'ADMIN',
+        createdAt: u.CreatedAt || u.createdAt || '',
+        lastLogin: u.LastLogin || u.lastLogin || '',
+        passwordChangedAt: u.PasswordChangedAt || u.passwordChangedAt || '',
+      }));
+      return { success: true, message: 'Tải danh sách người dùng thành công', data: parsedUsers };
     }
     return { success: false, message: result?.message || 'Không thể lấy danh sách người dùng.' };
   } catch (err: any) {
     return { success: false, message: err.message };
+  }
+}
+
+/**
+ * Authorize sensitive action (EDIT, DELETE, PRINT)
+ */
+export async function authorizeActionApi(
+  webAppUrl: string,
+  username: string,
+  password: string,
+  permission: 'EDIT' | 'DELETE' | 'PRINT',
+  targetId?: string
+): Promise<SyncResult> {
+  if (!webAppUrl) {
+    return { success: false, message: 'Chưa cấu hình URL Google Apps Script.' };
+  }
+  try {
+    const result = await executeSheetsApiCall(webAppUrl, true, {
+      action: 'authorizeAction',
+      username,
+      password,
+      permission,
+      targetId,
+    });
+
+    if (result && (result.success || result.status === 'success')) {
+      return {
+        success: true,
+        message: 'Xác thực quyền ' + permission + ' thành công!',
+        data: result.data || result,
+      };
+    } else {
+      return {
+        success: false,
+        message: result?.message || 'Không có quyền thực hiện thao tác này.',
+      };
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      message: 'Lỗi xác thực quyền: ' + (err.message || 'Không thể kết nối.'),
+    };
+  }
+}
+
+/**
+ * Delete Record from Google Sheets with Authorization
+ */
+export async function deleteRecordInGoogleSheets(
+  type: 'repair' | 'procurement',
+  recordId: string,
+  settings: AppSettings,
+  username?: string,
+  password?: string
+): Promise<SyncResult> {
+  const url = settings?.webAppUrl || '';
+  if (!url) return { success: false, message: 'Chưa cấu hình URL Google Apps Script.' };
+  try {
+    const result = await executeSheetsApiCall(url, true, {
+      action: 'deleteRecord',
+      type,
+      recordId,
+      username,
+      password,
+      token: settings.token || '',
+    });
+
+    if (result && (result.success || result.status === 'success')) {
+      return { success: true, message: result.message || 'Đã xóa hồ sơ khỏi Google Sheets!' };
+    } else {
+      return { success: false, message: result?.message || 'Không thể xóa hồ sơ.' };
+    }
+  } catch (err: any) {
+    return { success: false, message: 'Lỗi xóa hồ sơ: ' + (err.message || 'Lỗi kết nối') };
   }
 }
 

@@ -10,6 +10,9 @@ export interface UserAccount {
   role: UserRole;
   active: boolean;
   mustChangePassword?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canPrint?: boolean;
   createdAt?: string;
   lastLogin?: string;
   passwordChangedAt?: string;
