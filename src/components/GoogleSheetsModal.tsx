@@ -4,13 +4,14 @@ import {
   Copy,
   Check,
   FileCode,
-  ExternalLink,
   Zap,
   CheckCircle2,
   AlertCircle,
   HelpCircle,
   Loader2,
   Database,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { GOOGLE_APPS_SCRIPT_CODE, INSTRUCTIONS_STEPS } from '../utils/appsScriptCode';
 import { testGoogleAppsScriptConnection, saveSettingsToGoogleSheets } from '../services/sheetsApi';
@@ -35,6 +36,7 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
   const [managerEmail, setManagerEmail] = useState<string>(settings.managerEmail || '');
   const [testing, setTesting] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [showScriptGuide, setShowScriptGuide] = useState<boolean>(false);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_CODE);
@@ -91,9 +93,9 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
             </div>
             <div>
               <div className="text-xs text-amber-300 font-semibold uppercase tracking-wider">
-                CẤU HÌNH & HƯỚNG DẪN DÙNG GOOGLE APPS SCRIPT
+                QUẢN TRỊ KẾT NỐI & DỮ LIỆU GOOGLE SHEETS
               </div>
-              <h3 className="text-xl font-extrabold text-white">Lưu trữ Dữ liệu vào Google Sheets</h3>
+              <h3 className="text-xl font-extrabold text-white">Cấu Hình Kết Nối & Thông Báo Quản Lý</h3>
             </div>
           </div>
 
@@ -105,16 +107,18 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
           </button>
         </div>
 
-        {/* Content Body */}
+        {/* Content Body - Primary Management View */}
         <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-xs sm:text-sm">
-          {/* Quick Web App URL Tester Bar */}
-          <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-3 border border-slate-800">
+          {/* Main Web App URL Tester & Configuration Bar */}
+          <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-4 border border-slate-800 shadow-lg">
             <div className="flex items-center justify-between">
               <label className="font-bold text-amber-300 text-xs uppercase tracking-wider flex items-center space-x-1.5">
-                <Database className="w-4 h-4" />
-                <span>Link Google Apps Script Web App URL (doPost/doGet API)</span>
+                <Database className="w-4 h-4 text-emerald-400" />
+                <span>Google Apps Script Web App Backend URL</span>
               </label>
-              <span className="text-[11px] text-slate-400">Đã kiểm tra CORS proxy</span>
+              <span className="text-[11px] bg-emerald-900/80 text-emerald-300 px-2 py-0.5 rounded border border-emerald-700 font-medium">
+                Đã bảo mật CORS
+              </span>
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-2">
@@ -122,7 +126,7 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
                 type="text"
                 value={inputUrl}
                 onChange={(e) => setInputUrl(e.target.value)}
-                placeholder="Dán link Web App dạng: https://script.google.com/macros/s/.../exec"
+                placeholder="https://script.google.com/macros/s/.../exec"
                 className="w-full px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-xs focus:ring-2 focus:ring-amber-400 outline-none"
               />
 
@@ -138,7 +142,7 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
                   ) : (
                     <Zap className="w-4 h-4 text-amber-300" />
                   )}
-                  <span>Kiểm tra kết nối</span>
+                  <span>Kiểm tra</span>
                 </button>
 
                 <button
@@ -152,7 +156,7 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-800">
+            <div className="pt-3 border-t border-slate-800">
               <label className="block text-xs font-bold text-amber-300 mb-1">
                 📧 Email Cán bộ Quản lý nhận thông báo tự động khi có đề nghị mới:
               </label>
@@ -172,10 +176,10 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
                   <span>Cảnh báo: Bạn đang dán link Thư viện (Library) hoặc Editor!</span>
                 </div>
                 <p className="text-[11px] leading-relaxed">
-                  Đường link <code>/macros/library/...</code> gây ra lỗi <strong>Unexpected token '&lt;'</strong> do Google trả về trang Web HTML thay vì dữ liệu JSON.
+                  Đường link <code>/macros/library/...</code> gây ra lỗi do Google trả về trang HTML.
                 </p>
                 <div className="text-[11px] font-semibold text-amber-300 mt-1">
-                  👉 Cách khắc phục: Trong giao diện Apps Script &gt; bấm <strong>Triển khai (Deploy)</strong> &gt; <strong>Triển khai mới (New deployment)</strong> &gt; Chọn loại <strong>Ứng dụng Web (Web app)</strong> &gt; Quyền: <strong>Bất kỳ ai (Anyone)</strong> &gt; Copy link có đuôi <code>/exec</code>.
+                  👉 Cách khắc phục: Bấm <strong>Triển khai (Deploy)</strong> &gt; <strong>Triển khai mới</strong> &gt; Chọn loại <strong>Ứng dụng Web</strong> &gt; Quyền: <strong>Bất kỳ ai (Anyone)</strong> &gt; Copy link đuôi <code>/exec</code>.
                 </div>
               </div>
             )}
@@ -198,57 +202,78 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
             )}
           </div>
 
-          {/* Code.gs Copy Block */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-bold text-gray-900 flex items-center space-x-2">
+          {/* Small Box at the Bottom for Apps Script Instructions & Code.gs Source */}
+          <div className="mt-6 border border-gray-200 rounded-xl bg-gray-50 overflow-hidden shadow-sm">
+            <button
+              onClick={() => setShowScriptGuide(!showScriptGuide)}
+              className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs flex items-center justify-between transition-colors"
+            >
+              <div className="flex items-center space-x-2 text-gray-700">
                 <FileCode className="w-4 h-4 text-blue-900" />
-                <span>Mã nguồn Google Apps Script (Code.gs)</span>
-              </h4>
+                <span>📘 Hướng dẫn thiết lập Apps Script & Mã Nguồn Code.gs (Xem chi tiết)</span>
+              </div>
+              <div className="flex items-center space-x-1 text-blue-700 text-[11px]">
+                <span>{showScriptGuide ? 'Thu nhỏ' : 'Mở rộng'}</span>
+                {showScriptGuide ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </div>
+            </button>
 
-              <button
-                onClick={handleCopyCode}
-                className="px-4 py-1.5 bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center space-x-1.5"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4 text-emerald-300" />
-                    <span>Đã Copy!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4 text-amber-300" />
-                    <span>Sao chép Mã Code.gs</span>
-                  </>
-                )}
-              </button>
-            </div>
+            {showScriptGuide && (
+              <div className="p-4 space-y-4 bg-white border-t border-gray-200 animate-fadeIn">
+                {/* Code.gs Copy Block */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h5 className="font-bold text-gray-900 text-xs flex items-center space-x-1.5">
+                      <FileCode className="w-3.5 h-3.5 text-blue-900" />
+                      <span>Mã nguồn Google Apps Script (Code.gs)</span>
+                    </h5>
 
-            <pre className="bg-slate-950 text-emerald-400 font-mono text-xs p-4 rounded-2xl overflow-x-auto max-h-60 border border-slate-800 shadow-inner">
-              {GOOGLE_APPS_SCRIPT_CODE}
-            </pre>
-          </div>
-
-          {/* Step by Step Guide List */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-gray-900 flex items-center space-x-2">
-              <HelpCircle className="w-4 h-4 text-amber-600" />
-              <span>Các bước kết nối Google Sheet từng bước</span>
-            </h4>
-
-            <div className="space-y-2">
-              {INSTRUCTIONS_STEPS.map((s) => (
-                <div key={s.step} className="bg-gray-50 p-3.5 rounded-xl border border-gray-200 flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-[#002060] text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                    {s.step}
+                    <button
+                      onClick={handleCopyCode}
+                      className="px-3 py-1 bg-blue-900 hover:bg-blue-800 text-white font-bold text-[11px] rounded-lg shadow transition-all flex items-center space-x-1"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-300" />
+                          <span>Đã Copy!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Sao chép Mã Code.gs</span>
+                        </>
+                      )}
+                    </button>
                   </div>
-                  <div>
-                    <h5 className="font-bold text-gray-900">{s.title}</h5>
-                    <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">{s.content}</p>
+
+                  <pre className="bg-slate-950 text-emerald-400 font-mono text-[11px] p-3 rounded-xl overflow-x-auto max-h-48 border border-slate-800">
+                    {GOOGLE_APPS_SCRIPT_CODE}
+                  </pre>
+                </div>
+
+                {/* Step by Step Guide List */}
+                <div className="space-y-2 pt-2 border-t border-gray-100">
+                  <h5 className="font-bold text-gray-900 text-xs flex items-center space-x-1.5">
+                    <HelpCircle className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Các bước kết nối Google Sheet từng bước</span>
+                  </h5>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {INSTRUCTIONS_STEPS.map((s) => (
+                      <div key={s.step} className="bg-gray-50 p-2.5 rounded-lg border border-gray-200 flex items-start space-x-2">
+                        <div className="w-5 h-5 rounded-full bg-[#002060] text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                          {s.step}
+                        </div>
+                        <div>
+                          <h6 className="font-bold text-gray-900 text-[11px]">{s.title}</h6>
+                          <p className="text-[10px] text-gray-600 mt-0.5 leading-relaxed">{s.content}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
         </div>
 

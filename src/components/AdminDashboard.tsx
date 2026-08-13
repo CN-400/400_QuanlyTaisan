@@ -95,7 +95,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   ) => {
     // 1. If user is not logged in
     if (!currentUser || !settings.token) {
-      showToast('Bạn không có quyền truy cập chức năng này. Vui lòng đăng nhập!', 'error');
+      showToast('Vui lòng đăng nhập tài khoản Cán bộ để xem chi tiết, sửa hoặc xóa thông tin!', 'info');
       if (onRequireLogin) {
         onRequireLogin();
       }
@@ -516,6 +516,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           onClose={() => setShowUserModal(false)}
           showToast={showToast}
         />
+      )}
+
+      {/* Guest Notice Banner for Unauthenticated Users */}
+      {!currentUser && (
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-xl mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm border border-amber-200">
+          <div className="flex items-center space-x-2 text-xs sm:text-sm text-amber-900 font-medium">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <span>
+              Bạn đang ở chế độ <strong>Xem & Tra cứu công khai</strong>. Để xem chi tiết, chỉnh sửa, xóa hoặc in phiếu đề nghị, vui lòng đăng nhập tài khoản Cán bộ xử lý / Quản lý.
+            </span>
+          </div>
+          <button
+            onClick={onRequireLogin}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-extrabold rounded-lg shadow transition-all shrink-0 self-end sm:self-auto"
+          >
+            Đăng nhập ngay
+          </button>
+        </div>
       )}
 
       {/* Title & SubTab Switcher */}

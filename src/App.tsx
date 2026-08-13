@@ -144,12 +144,6 @@ export default function App() {
       return;
     }
 
-    if (tab === 'admin' && !settings.currentUser) {
-      showToastHandler('Vui lòng đăng nhập tài khoản (ADMIN / MANAGER / PROCESSOR) để truy cập!', 'info');
-      setShowAdminLoginModal(true);
-      return;
-    }
-
     setActiveTab(tab);
   };
 
