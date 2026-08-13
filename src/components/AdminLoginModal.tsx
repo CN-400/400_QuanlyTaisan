@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Lock, KeyRound, ShieldAlert, X, Eye, EyeOff, ShieldCheck, User, Loader2 } from 'lucide-react';
 import { loginUser } from '../services/sheetsApi';
 import { AppSettings, UserAccount } from '../types';
+import { ChangePasswordModal } from './ChangePasswordModal';
 
 interface AdminLoginModalProps {
   currentPassword?: string;
@@ -24,6 +25,13 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // State for forced password change flow
+  const [mustChangePasswordUser, setMustChangePasswordUser] = useState<{
+    username: string;
+    token: string;
+    user: UserAccount;
+  } | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!usernameInput.trim() || !passwordInput.trim()) {
@@ -39,6 +47,17 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
       const res = await loginUser(settings.webAppUrl, usernameInput.trim(), passwordInput.trim());
       setLoading(false);
       if (res.success && res.data) {
+        const mustChange = res.data.mustChangePassword || res.data.user?.mustChangePassword;
+        if (mustChange) {
+          showToast('Tài khoản yêu cầu đổi mật khẩu tạm thời!', 'info');
+          setMustChangePasswordUser({
+            username: res.data.user.username,
+            token: res.data.token,
+            user: res.data.user,
+          });
+          return;
+        }
+
         showToast(`Đăng nhập thành công! Quyền: ${res.data.user?.role || 'ADMIN'}`, 'success');
         onSuccess(res.data);
         return;
@@ -68,6 +87,30 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
       showToast('Mật khẩu hoặc tài khoản không đúng!', 'error');
     }
   };
+
+  // If forced password change is required
+  if (mustChangePasswordUser && settings) {
+    return (
+      <ChangePasswordModal
+        settings={settings}
+        username={mustChangePasswordUser.username}
+        token={mustChangePasswordUser.token}
+        isMandatory={true}
+        onSuccess={() => {
+          showToast('Đổi mật khẩu thành công! Bạn có thể tiếp tục sử dụng hệ thống.', 'success');
+          onSuccess({
+            token: mustChangePasswordUser.token,
+            user: {
+              ...mustChangePasswordUser.user,
+              mustChangePassword: false,
+            },
+          });
+        }}
+        onClose={() => {}}
+        showToast={showToast}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">

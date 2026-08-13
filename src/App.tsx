@@ -10,7 +10,7 @@ import {
   saveRepairRequests,
   syncSettingsFromGoogleSheets,
 } from './services/storage';
-import { fetchAllFromGoogleSheets, parseProcurementRows, parseRepairRows } from './services/sheetsApi';
+import { fetchAllFromGoogleSheets, parseProcurementRows, parseRepairRows, validateSessionApi } from './services/sheetsApi';
 import { Header } from './components/Header';
 import { HomeScreen } from './components/HomeScreen';
 import { RepairForm } from './components/RepairForm';
@@ -19,6 +19,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { GoogleSheetsModal } from './components/GoogleSheetsModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AdminLoginModal } from './components/AdminLoginModal';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { Toast } from './components/Toast';
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
   // Authentication & Admin State
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(false);
   const [showAdminLoginModal, setShowAdminLoginModal] = useState<boolean>(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState<boolean>(false);
 
   // Modals
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
@@ -49,9 +51,25 @@ export default function App() {
 
       // 2. Sync business configuration from Google Sheets (sheet CauHinh) - CENTRAL SOURCE OF TRUTH
       const syncedSettings = await syncSettingsFromGoogleSheets(urlConfig);
-      setSettings(syncedSettings);
 
-      // 3. Fetch all requests from Google Sheets if Web App URL is present
+      // 3. Validate existing session token if present
+      if (syncedSettings.webAppUrl && syncedSettings.token) {
+        const valRes = await validateSessionApi(syncedSettings.webAppUrl, syncedSettings.token);
+        if (valRes.success && valRes.data?.user) {
+          setIsAdminLoggedIn(true);
+          syncedSettings.currentUser = valRes.data.user;
+        } else {
+          // Token expired or invalidated
+          setIsAdminLoggedIn(false);
+          delete syncedSettings.token;
+          delete syncedSettings.currentUser;
+        }
+      }
+
+      setSettings(syncedSettings);
+      saveAppSettings(syncedSettings);
+
+      // 4. Fetch all requests from Google Sheets if Web App URL is present
       if (syncedSettings.webAppUrl) {
         const res = await fetchAllFromGoogleSheets(syncedSettings);
         if (res.success && res.data) {
@@ -87,6 +105,16 @@ export default function App() {
     setSettings(saved);
   };
 
+  const handleLogout = () => {
+    setIsAdminLoggedIn(false);
+    const updated = { ...settings };
+    delete updated.token;
+    delete updated.currentUser;
+    saveAppSettings(updated);
+    setSettings(updated);
+    showToastHandler('Đã đăng xuất tài khoản thành công', 'info');
+  };
+
   const handleResetData = () => {
     setRepairRequests(getRepairRequests());
     setProcurementRequests(getProcurementRequests());
@@ -117,6 +145,8 @@ export default function App() {
         repairCount={repairRequests.filter((r) => r.status === 'Đề xuất').length}
         procurementCount={procurementRequests.filter((p) => p.status === 'Đề xuất').length}
         isAdminLoggedIn={isAdminLoggedIn}
+        onOpenChangePassword={() => setShowChangePasswordModal(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Body */}
@@ -214,6 +244,18 @@ export default function App() {
             setShowSettingsModal(true);
           }}
           onClose={() => setShowAdminLoginModal(false)}
+          showToast={showToastHandler}
+        />
+      )}
+
+      {showChangePasswordModal && (
+        <ChangePasswordModal
+          settings={settings}
+          username={settings.currentUser?.username || 'admin'}
+          token={settings.token}
+          isMandatory={false}
+          onSuccess={() => setShowChangePasswordModal(false)}
+          onClose={() => setShowChangePasswordModal(false)}
           showToast={showToastHandler}
         />
       )}

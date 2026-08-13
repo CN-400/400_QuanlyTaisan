@@ -129,12 +129,18 @@ export async function loginUser(
     });
 
     if (result && (result.success || result.status === 'success')) {
+      const userObj = result.user || result.data?.user || {
+        username,
+        fullName: username,
+        role: result.role || 'PROCESSOR',
+      };
+      const tokenVal = result.token || result.data?.token;
       return {
         success: true,
         message: 'Đăng nhập thành công!',
         data: {
-          token: result.token,
-          user: result.user,
+          token: tokenVal,
+          user: userObj,
         },
       };
     } else {
@@ -148,6 +154,107 @@ export async function loginUser(
       success: false,
       message: 'Lỗi đăng nhập: ' + (err.message || 'Không thể kết nối đến máy chủ.'),
     };
+  }
+}
+
+/**
+ * Validate Session Token
+ */
+export async function validateSessionApi(webAppUrl: string, token: string): Promise<SyncResult> {
+  if (!webAppUrl || !token) {
+    return { success: false, message: 'Chưa có token phiên đăng nhập.' };
+  }
+  try {
+    const result = await executeSheetsApiCall(webAppUrl, true, {
+      action: 'validateSession',
+      token,
+    });
+
+    if (result && (result.success || result.status === 'success')) {
+      return {
+        success: true,
+        message: 'Phiên đăng nhập hợp lệ!',
+        data: result.data || {
+          username: result.username,
+          fullName: result.fullName,
+          role: result.role,
+          mustChangePassword: result.mustChangePassword,
+        },
+      };
+    } else {
+      return {
+        success: false,
+        message: result?.message || 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!',
+      };
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      message: 'Không thể xác thực phiên: ' + (err.message || 'Lỗi kết nối'),
+    };
+  }
+}
+
+/**
+ * Change Password (for user logging in with temp password or voluntary change)
+ */
+export async function changePasswordInGoogleSheets(
+  currentPassword: string,
+  newPassword: string,
+  settings: AppSettings,
+  token: string
+): Promise<SyncResult> {
+  const url = settings?.webAppUrl || '';
+  if (!url) return { success: false, message: 'Chưa cấu hình URL Google Apps Script.' };
+  try {
+    const result = await executeSheetsApiCall(url, true, {
+      action: 'changePassword',
+      token,
+      currentPassword,
+      newPassword,
+    });
+
+    if (result && (result.success || result.status === 'success')) {
+      return { success: true, message: result.message || 'Đổi mật khẩu thành công!' };
+    } else {
+      return { success: false, message: result?.message || 'Không thể đổi mật khẩu.' };
+    }
+  } catch (err: any) {
+    return { success: false, message: 'Lỗi đổi mật khẩu: ' + (err.message || 'Lỗi kết nối') };
+  }
+}
+
+/**
+ * Reset Password (ADMIN function)
+ */
+export async function resetPasswordInGoogleSheets(
+  targetUsername: string,
+  settings: AppSettings,
+  token: string
+): Promise<SyncResult> {
+  const url = settings?.webAppUrl || '';
+  if (!url) return { success: false, message: 'Chưa cấu hình URL Google Apps Script.' };
+  try {
+    const result = await executeSheetsApiCall(url, true, {
+      action: 'resetPassword',
+      token,
+      data: { username: targetUsername },
+    });
+
+    if (result && (result.success || result.status === 'success')) {
+      return {
+        success: true,
+        message: result.message || 'Reset mật khẩu thành công!',
+        data: {
+          username: targetUsername,
+          temporaryPassword: result.temporaryPassword || result.data?.temporaryPassword,
+        },
+      };
+    } else {
+      return { success: false, message: result?.message || 'Không thể reset mật khẩu.' };
+    }
+  } catch (err: any) {
+    return { success: false, message: 'Lỗi reset mật khẩu: ' + (err.message || 'Lỗi kết nối') };
   }
 }
 

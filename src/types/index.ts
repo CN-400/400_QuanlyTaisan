@@ -9,8 +9,10 @@ export interface UserAccount {
   fullName: string;
   role: UserRole;
   active: boolean;
+  mustChangePassword?: boolean;
   createdAt?: string;
   lastLogin?: string;
+  passwordChangedAt?: string;
 }
 
 export interface UserSession {
@@ -18,7 +20,8 @@ export interface UserSession {
   username: string;
   role: UserRole;
   fullName: string;
-  expiresAt: string;
+  mustChangePassword?: boolean;
+  expiresAt?: string;
 }
 
 export interface SystemLogEntry {

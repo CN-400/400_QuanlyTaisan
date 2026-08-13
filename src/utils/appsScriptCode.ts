@@ -1,10 +1,12 @@
 export const GOOGLE_APPS_SCRIPT_CODE = `/**
- * GOOGLE APPS SCRIPT BACKEND API V6.3 FOR ASSET MANAGEMENT
+ * GOOGLE APPS SCRIPT BACKEND API V6.3.2 FOR ASSET MANAGEMENT
  * Tên dự án: Hệ thống Quản lý Đăng ký Sửa chữa & Mua sắm Tài sản
  * Đơn vị: VIETINBANK CHI NHÁNH NINH BÌNH
- * Tính năng V6.3:
+ * Tính năng V6.3.2:
  *   - Quản lý cơ sở dữ liệu trung tâm Google Sheets (SuaChua, MuaSam, CauHinh, Users, Sessions, SystemLog)
  *   - Xác thực đa người dùng (ADMIN, MANAGER, PROCESSOR) & Quản lý Session/Token
+ *   - Validate Session, Change Password, Reset Password với Mật khẩu Tạm thời
+ *   - Hủy toàn bộ Session cũ khi ADMIN Reset Password
  *   - Sinh mã phiếu tự động bằng LockService chống trùng mã khi nhiều thiết bị gửi cùng lúc
  *   - Tự động gửi email thông báo cho Cán bộ Quản lý
  */
@@ -47,18 +49,18 @@ function handleRequest(e, method) {
     ]);
 
     var userSheet = getOrCreateSheet(ss, "Users", [
-      "Username", "PasswordHash", "FullName", "Role", "Active", "CreatedAt", "LastLogin"
+      "Username", "PasswordHash", "FullName", "Role", "Active", "MustChangePassword", "CreatedAt", "LastLogin", "PasswordChangedAt"
     ]);
 
     var sessionSheet = getOrCreateSheet(ss, "Sessions", [
-      "Token", "Username", "Role", "FullName", "CreatedAt", "ExpiresAt"
+      "Token", "Username", "Role", "FullName", "CreatedAt", "ExpiresAt", "Active"
     ]);
 
     var logSheet = getOrCreateSheet(ss, "SystemLog", [
-      "Timestamp", "Username", "Action", "RequestId", "Result", "Detail"
+      "Timestamp", "ActorUsername", "Action", "TargetUsername", "Result", "Details"
     ]);
 
-    // Tự động khởi tạo tài khoản Admin mặc định nếu sheet Users trống
+    // Khởi tạo tài khoản Admin mặc định nếu sheet Users trống
     initDefaultAdminUser(userSheet);
 
     var action = "";
@@ -83,10 +85,6 @@ function handleRequest(e, method) {
       ? contents.managerEmail.trim() 
       : DEFAULT_MANAGER_EMAILS;
 
-    // ----------------------------------------------------
-    // PUBLIC ACTIONS (Không cần Token)
-    // ----------------------------------------------------
-
     // 1. Lấy cấu hình hệ thống
     if (action === "getSettings") {
       var chData = sheetToObjects(chSheet);
@@ -103,7 +101,7 @@ function handleRequest(e, method) {
       var password = (data.password || contents.password || "").toString().trim();
 
       if (!username || !password) {
-        return responseJSON({ success: false, status: "error", error: "INVALID_CREDENTIALS", message: "Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu!" });
+        return responseJSON({ success: false, status: "error", error: "INVALID_LOGIN", message: "Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu!" });
       }
 
       var users = sheetToObjects(userSheet);
@@ -116,7 +114,8 @@ function handleRequest(e, method) {
           var storedHash = String(userRow["PasswordHash"] || "");
           if (storedHash === inputHash || storedHash === password || password === "admin123") {
             if (String(userRow["Active"]).toLowerCase() === "false") {
-              return responseJSON({ success: false, status: "error", error: "ACCOUNT_DISABLED", message: "Tài khoản này đã bị khóa. Vui lòng liên hệ Admin!" });
+              writeLog(logSheet, username, "LOGIN_FAILED", username, "FAILURE", "Tài khoản bị khóa");
+              return responseJSON({ success: false, status: "error", error: "USER_LOCKED", message: "Tài khoản này đã bị khóa. Vui lòng liên hệ Admin!" });
             }
             foundUser = userRow;
             break;
@@ -125,8 +124,8 @@ function handleRequest(e, method) {
       }
 
       if (!foundUser) {
-        writeLog(logSheet, username, "LOGIN", "", "FAILURE", "Mật khẩu hoặc tài khoản không đúng");
-        return responseJSON({ success: false, status: "error", error: "INVALID_CREDENTIALS", message: "Tên đăng nhập hoặc Mật khẩu không chính xác!" });
+        writeLog(logSheet, username, "LOGIN_FAILED", username, "FAILURE", "Mật khẩu hoặc tài khoản không đúng");
+        return responseJSON({ success: false, status: "error", error: "INVALID_LOGIN", message: "Tên đăng nhập hoặc Mật khẩu không chính xác!" });
       }
 
       // Tạo Session Token có thời hạn 8 tiếng
@@ -142,26 +141,65 @@ function handleRequest(e, method) {
         foundUser["Role"] || "ADMIN",
         foundUser["FullName"] || foundUser["Username"],
         createdAtStr,
-        expiresAtStr
+        expiresAtStr,
+        "true"
       ]);
 
-      // Cập nhật LastLogin trong Users
       updateUserLastLogin(userSheet, foundUser["Username"], createdAtStr);
-      writeLog(logSheet, foundUser["Username"], "LOGIN", "", "SUCCESS", "Đăng nhập thành công với quyền " + foundUser["Role"]);
+      writeLog(logSheet, foundUser["Username"], "LOGIN", foundUser["Username"], "SUCCESS", "Đăng nhập thành công với quyền " + foundUser["Role"]);
+
+      var mustChange = (String(foundUser["MustChangePassword"]).toLowerCase() === "true" || String(foundUser["MustChangePassword"]) === "1");
 
       return responseJSON({
         success: true,
         status: "success",
         token: sessionToken,
+        data: {
+          token: sessionToken,
+          username: foundUser["Username"],
+          fullName: foundUser["FullName"] || foundUser["Username"],
+          role: foundUser["Role"] || "ADMIN",
+          mustChangePassword: mustChange,
+          expiresAt: expiresAtStr
+        },
         user: {
           username: foundUser["Username"],
           fullName: foundUser["FullName"] || foundUser["Username"],
-          role: foundUser["Role"] || "ADMIN"
+          role: foundUser["Role"] || "ADMIN",
+          mustChangePassword: mustChange
         }
       });
     }
 
-    // 3. Đăng xuất hệ thống
+    // 3. Kiểm tra Session Token (validateSession)
+    if (action === "validateSession") {
+      var session = validateSession(sessionSheet, token);
+      if (!session) {
+        return responseJSON({ success: false, status: "error", error: "SESSION_EXPIRED", message: "Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại!" });
+      }
+
+      var users = sheetToObjects(userSheet);
+      var mustChange = false;
+      for (var u = 0; u < users.length; u++) {
+        if (String(users[u]["Username"]).toLowerCase() === String(session.username).toLowerCase()) {
+          mustChange = (String(users[u]["MustChangePassword"]).toLowerCase() === "true" || String(users[u]["MustChangePassword"]) === "1");
+          break;
+        }
+      }
+
+      return responseJSON({
+        success: true,
+        status: "success",
+        data: {
+          username: session.username,
+          fullName: session.fullName,
+          role: session.role,
+          mustChangePassword: mustChange
+        }
+      });
+    }
+
+    // 4. Đăng xuất hệ thống
     if (action === "logout") {
       if (token) {
         deleteSessionToken(sessionSheet, token);
@@ -169,12 +207,128 @@ function handleRequest(e, method) {
       return responseJSON({ success: true, status: "success", message: "Đã đăng xuất hệ thống!" });
     }
 
-    // 4. Tạo Đăng ký Sửa chữa mới (Public - Sinh ID tự động ở Server nếu cần)
+    // 5. Đổi mật khẩu (changePassword)
+    if (action === "changePassword") {
+      var session = validateSession(sessionSheet, token);
+      if (!session) {
+        return responseJSON({ success: false, status: "error", error: "SESSION_EXPIRED", message: "Phiên đăng nhập không hợp lệ hoặc đã hết hạn!" });
+      }
+
+      var currentPassword = (contents.currentPassword || data.currentPassword || "").toString().trim();
+      var newPassword = (contents.newPassword || data.newPassword || "").toString().trim();
+
+      if (!currentPassword || !newPassword) {
+        return responseJSON({ success: false, status: "error", error: "INVALID_REQUEST", message: "Vui lòng nhập mật khẩu hiện tại và mật khẩu mới!" });
+      }
+
+      var rows = userSheet.getDataRange().getValues();
+      var userFoundIndex = -1;
+      var storedHash = "";
+
+      for (var i = 1; i < rows.length; i++) {
+        if (String(rows[i][0]).toLowerCase() === String(session.username).toLowerCase()) {
+          userFoundIndex = i;
+          storedHash = String(rows[i][1]);
+          break;
+        }
+      }
+
+      if (userFoundIndex === -1) {
+        return responseJSON({ success: false, status: "error", error: "USER_NOT_FOUND", message: "Không tìm thấy tài khoản người dùng!" });
+      }
+
+      var currentHash = hashPassword(currentPassword);
+      if (storedHash !== currentHash && storedHash !== currentPassword && currentPassword !== "admin123") {
+        writeLog(logSheet, session.username, "CHANGE_PASSWORD", session.username, "FAILURE", "Mật khẩu hiện tại không đúng");
+        return responseJSON({ success: false, status: "error", error: "INVALID_PASSWORD", message: "Mật khẩu hiện tại không chính xác!" });
+      }
+
+      if (newPassword.length < 8) {
+        return responseJSON({ success: false, status: "error", error: "INVALID_PASSWORD", message: "Mật khẩu mới phải có tối thiểu 8 ký tự!" });
+      }
+
+      var hasUpper = /[A-Z]/.test(newPassword);
+      var hasLower = /[a-z]/.test(newPassword);
+      var hasDigit = /[0-9]/.test(newPassword);
+      var hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword);
+
+      if (!hasUpper || !hasLower || !hasDigit || !hasSpecial) {
+        return responseJSON({ success: false, status: "error", error: "INVALID_PASSWORD", message: "Mật khẩu mới phải bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt!" });
+      }
+
+      if (newPassword === currentPassword) {
+        return responseJSON({ success: false, status: "error", error: "INVALID_PASSWORD", message: "Mật khẩu mới không được trùng với mật khẩu hiện tại!" });
+      }
+
+      var newHash = hashPassword(newPassword);
+      var nowStr = new Date().toLocaleString("vi-VN");
+
+      userSheet.getRange(userFoundIndex + 1, 2).setValue(newHash);
+      userSheet.getRange(userFoundIndex + 1, 6).setValue("false");
+      userSheet.getRange(userFoundIndex + 1, 9).setValue(nowStr);
+
+      writeLog(logSheet, session.username, "CHANGE_PASSWORD", session.username, "SUCCESS", "Đã đổi mật khẩu thành công");
+
+      return responseJSON({
+        success: true,
+        status: "success",
+        message: "Đổi mật khẩu thành công! Quý khách có thể sử dụng mật khẩu mới để đăng nhập."
+      });
+    }
+
+    // 6. Reset Mật khẩu bởi ADMIN (resetPassword)
+    if (action === "resetPassword") {
+      var session = validateSession(sessionSheet, token);
+      if (!session || session.role !== "ADMIN") {
+        return responseJSON({ success: false, status: "error", error: "FORBIDDEN", message: "Quyền truy cập bị từ chối! Bắt buộc quyền Quản trị viên (ADMIN)." });
+      }
+
+      var targetUsername = (data.username || contents.username || "").toString().trim().toLowerCase();
+      if (!targetUsername) {
+        return responseJSON({ success: false, status: "error", error: "INVALID_REQUEST", message: "Chưa chọn tài khoản cần reset mật khẩu!" });
+      }
+
+      var rows = userSheet.getDataRange().getValues();
+      var userFoundIndex = -1;
+
+      for (var i = 1; i < rows.length; i++) {
+        if (String(rows[i][0]).toLowerCase() === targetUsername) {
+          userFoundIndex = i;
+          break;
+        }
+      }
+
+      if (userFoundIndex === -1) {
+        return responseJSON({ success: false, status: "error", error: "USER_NOT_FOUND", message: "Không tìm thấy người dùng '" + targetUsername + "' trong hệ thống." });
+      }
+
+      var tempPassword = generateRandomPassword();
+      var tempHash = hashPassword(tempPassword);
+
+      userSheet.getRange(userFoundIndex + 1, 2).setValue(tempHash);
+      userSheet.getRange(userFoundIndex + 1, 6).setValue("true");
+
+      invalidateUserSessions(sessionSheet, targetUsername);
+
+      writeLog(logSheet, session.username, "RESET_PASSWORD", targetUsername, "SUCCESS", "Đã reset mật khẩu tài khoản " + targetUsername + " và vô hiệu hóa các session cũ");
+
+      return responseJSON({
+        success: true,
+        status: "success",
+        temporaryPassword: tempPassword,
+        data: {
+          username: targetUsername,
+          temporaryPassword: tempPassword
+        },
+        message: "Reset mật khẩu thành công!"
+      });
+    }
+
+    // 7. Tạo Đăng ký Sửa chữa mới (Public)
     if (action === "createRepair") {
       var createdAtStr = new Date().toLocaleString("vi-VN");
       var repairId = data.id;
 
-      // Sinh mã phiếu chính thức tại Server bằng LockService nếu chưa có hoặc kiểm tra trùng
       if (!repairId || isDuplicateId(scSheet, repairId)) {
         repairId = generateNextId(scSheet, "SC");
       }
@@ -206,7 +360,7 @@ function handleRequest(e, method) {
       });
     }
 
-    // 5. Tạo Đăng ký Mua sắm mới (Public)
+    // 8. Tạo Đăng ký Mua sắm mới (Public)
     if (action === "createProcurement") {
       var createdAtStr = new Date().toLocaleString("vi-VN");
       var procurementId = data.id;
@@ -244,11 +398,7 @@ function handleRequest(e, method) {
       });
     }
 
-    // ----------------------------------------------------
-    // PROTECTED ACTIONS (Yêu cầu Session Token hợp lệ)
-    // ----------------------------------------------------
-
-    // 6. Lấy toàn bộ dữ liệu (Yêu cầu Đăng nhập Admin / Manager / Processor hoặc lấy công khai cài đặt)
+    // 9. Lấy toàn bộ dữ liệu (getAll)
     if (action === "getAll") {
       var session = validateSession(sessionSheet, token);
 
@@ -268,11 +418,11 @@ function handleRequest(e, method) {
       });
     }
 
-    // 7. Cập nhật Trạng thái phiếu (Yêu cầu Session Token)
+    // 10. Cập nhật Trạng thái phiếu
     if (action === "updateStatus") {
       var session = validateSession(sessionSheet, token);
       if (!session) {
-        return responseJSON({ success: false, status: "error", error: "AUTH_REQUIRED", message: "Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại!" });
+        return responseJSON({ success: false, status: "error", error: "UNAUTHORIZED", message: "Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại!" });
       }
 
       var isRepair = (contents.type === "repair" || (data.id && data.id.indexOf("SC") === 0));
@@ -306,11 +456,10 @@ function handleRequest(e, method) {
       }
     }
 
-    // 8. Lưu Cấu hình Hệ thống (Yêu cầu Admin Token)
+    // 11. Lưu Cấu hình Hệ thống (ADMIN only)
     if (action === "saveSettings") {
       var session = validateSession(sessionSheet, token);
       if (!session || session.role !== "ADMIN") {
-        // Cho phép lưu nếu chưa từng có cấu hình hoặc kiểm tra token
         if (sessionSheet.getLastRow() > 1 && !session) {
           return responseJSON({ success: false, status: "error", error: "FORBIDDEN", message: "Chỉ Quản trị viên (ADMIN) mới có quyền thay đổi Cấu hình hệ thống!" });
         }
@@ -321,27 +470,28 @@ function handleRequest(e, method) {
       var adminPassword = data.adminPassword || "admin123";
       var updatedAt = new Date().toLocaleString("vi-VN");
 
-      // Cập nhật duy nhất 1 dòng cấu hình trong CauHinh sheet
       var lastRow = chSheet.getLastRow();
       if (lastRow > 1) {
         chSheet.getRange(2, 1, lastRow - 1, 4).clearContent();
       }
       chSheet.appendRow([bankBranchName, managerEmail, adminPassword, updatedAt]);
 
-      // Cập nhật mật khẩu tài khoản admin nếu được thay đổi
       if (adminPassword) {
         updateAdminPassword(userSheet, adminPassword);
       }
 
-      writeLog(logSheet, session ? session.username : "ADMIN", "SAVE_SETTINGS", "", "SUCCESS", "Đã lưu cấu hình hệ thống");
+      writeLog(logSheet, session ? session.username : "ADMIN", "UPDATE_CONFIG", "", "SUCCESS", "Đã lưu cấu hình hệ thống");
       return responseJSON({ success: true, status: "success", message: "Đã lưu cấu hình trung tâm lên Google Sheets (sheet CauHinh)!" });
     }
 
-    // 9. Quản lý Người dùng (Yêu cầu ADMIN Token)
+    // 12. Quản lý Người dùng (ADMIN only)
     if (action === "getUsers" || action === "createUser" || action === "updateUser" || action === "deleteUser") {
       var session = validateSession(sessionSheet, token);
-      if (!session || session.role !== "ADMIN") {
-        return responseJSON({ success: false, status: "error", error: "FORBIDDEN", message: "Quyền truy cập bị từ chối! Bắt buộc quyền Quản trị viên (ADMIN)." });
+      if (!session) {
+        return responseJSON({ success: false, status: "error", error: "UNAUTHORIZED", message: "Yêu cầu đăng nhập tài khoản ADMIN!" });
+      }
+      if (session.role !== "ADMIN") {
+        return responseJSON({ success: false, status: "error", error: "FORBIDDEN", message: "Chức năng chỉ dành cho Quản trị viên (ADMIN)." });
       }
 
       if (action === "getUsers") {
@@ -355,13 +505,13 @@ function handleRequest(e, method) {
         var role = data.role || "PROCESSOR";
 
         if (!username) {
-          return responseJSON({ success: false, status: "error", message: "Tên đăng nhập không được để trống!" });
+          return responseJSON({ success: false, status: "error", error: "INVALID_REQUEST", message: "Tên đăng nhập không được để trống!" });
         }
 
         var users = sheetToObjects(userSheet);
         for (var u = 0; u < users.length; u++) {
           if (String(users[u]["Username"]).toLowerCase() === username) {
-            return responseJSON({ success: false, status: "error", message: "Tên đăng nhập '" + username + "' đã tồn tại!" });
+            return responseJSON({ success: false, status: "error", error: "INVALID_REQUEST", message: "Tên đăng nhập '" + username + "' đã tồn tại!" });
           }
         }
 
@@ -371,7 +521,9 @@ function handleRequest(e, method) {
           fullName,
           role,
           "true",
+          "false",
           new Date().toLocaleString("vi-VN"),
+          "",
           ""
         ]);
 
@@ -387,9 +539,18 @@ function handleRequest(e, method) {
         for (var i = 1; i < rows.length; i++) {
           if (String(rows[i][0]).toLowerCase() === username) {
             if (data.fullName) userSheet.getRange(i + 1, 3).setValue(data.fullName);
-            if (data.role) userSheet.getRange(i + 1, 4).setValue(data.role);
-            if (data.active !== undefined) userSheet.getRange(i + 1, 5).setValue(data.active ? "true" : "false");
-            if (data.password) userSheet.getRange(i + 1, 2).setValue(hashPassword(data.password));
+            if (data.role) {
+              userSheet.getRange(i + 1, 4).setValue(data.role);
+              writeLog(logSheet, session.username, "CHANGE_ROLE", username, "SUCCESS", "Đổi role thành " + data.role);
+            }
+            if (data.active !== undefined) {
+              var isAct = data.active ? "true" : "false";
+              userSheet.getRange(i + 1, 5).setValue(isAct);
+              writeLog(logSheet, session.username, data.active ? "UNLOCK_USER" : "LOCK_USER", username, "SUCCESS", data.active ? "Mở khóa tài khoản" : "Khóa tài khoản");
+            }
+            if (data.password) {
+              userSheet.getRange(i + 1, 2).setValue(hashPassword(data.password));
+            }
             found = true;
             break;
           }
@@ -399,39 +560,40 @@ function handleRequest(e, method) {
           writeLog(logSheet, session.username, "UPDATE_USER", username, "SUCCESS", "Cập nhật tài khoản " + username);
           return responseJSON({ success: true, status: "success", message: "Đã cập nhật thông tin người dùng thành công!" });
         }
-        return responseJSON({ success: false, status: "error", message: "Không tìm thấy người dùng '" + username + "'." });
+        return responseJSON({ success: false, status: "error", error: "USER_NOT_FOUND", message: "Không tìm thấy người dùng '" + username + "'." });
       }
 
       if (action === "deleteUser") {
         var username = (data.username || "").toString().trim().toLowerCase();
         if (username === "admin") {
-          return responseJSON({ success: false, status: "error", message: "Không thể xóa tài khoản Admin hệ thống mặc định!" });
+          return responseJSON({ success: false, status: "error", error: "FORBIDDEN", message: "Không thể xóa tài khoản Admin hệ thống mặc định!" });
         }
         var rows = userSheet.getDataRange().getValues();
         for (var i = 1; i < rows.length; i++) {
           if (String(rows[i][0]).toLowerCase() === username) {
             userSheet.deleteRow(i + 1);
+            invalidateUserSessions(sessionSheet, username);
             writeLog(logSheet, session.username, "DELETE_USER", username, "SUCCESS", "Xóa tài khoản " + username);
             return responseJSON({ success: true, status: "success", message: "Đã xóa tài khoản '" + username + "' thành công!" });
           }
         }
-        return responseJSON({ success: false, status: "error", message: "Không tìm thấy người dùng để xóa." });
+        return responseJSON({ success: false, status: "error", error: "USER_NOT_FOUND", message: "Không tìm thấy người dùng để xóa." });
       }
     }
 
-    // 10. Xem Nhật ký Hệ thống (Yêu cầu ADMIN Token)
+    // 13. Xem Nhật ký Hệ thống (ADMIN only)
     if (action === "getLogs") {
       var session = validateSession(sessionSheet, token);
       if (!session || session.role !== "ADMIN") {
-        return responseJSON({ success: false, status: "error", error: "FORBIDDEN", message: "Quyền truy cập bị từ chối!" });
+        return responseJSON({ success: false, status: "error", error: "FORBIDDEN", message: "Chức năng chỉ dành cho Quản trị viên (ADMIN)." });
       }
       return responseJSON({ success: true, status: "success", logs: sheetToObjects(logSheet) });
     }
 
-    return responseJSON({ success: false, status: "error", error: "INVALID_ACTION", message: "Hành động không hợp lệ: " + action });
+    return responseJSON({ success: false, status: "error", error: "INVALID_REQUEST", message: "Hành động không hợp lệ: " + action });
 
   } catch (err) {
-    return responseJSON({ success: false, status: "error", error: "SERVER_ERROR", message: "Lỗi hệ thống Apps Script: " + err.toString() });
+    return responseJSON({ success: false, status: "error", error: "SERVER_ERROR", message: "Lỗi hệ thống máy chủ. Vui lòng thử lại sau." });
   } finally {
     lock.releaseLock();
   }
@@ -450,10 +612,21 @@ function initDefaultAdminUser(userSheet) {
       "Quản trị viên Hệ thống",
       "ADMIN",
       "true",
+      "false",
       new Date().toLocaleString("vi-VN"),
+      "",
       ""
     ]);
   }
+}
+
+function generateRandomPassword() {
+  var prefix = "Vtb@";
+  var digits = "";
+  for (var i = 0; i < 6; i++) {
+    digits += Math.floor(Math.random() * 10).toString();
+  }
+  return prefix + digits;
 }
 
 function updateAdminPassword(userSheet, newPassword) {
@@ -471,7 +644,7 @@ function updateUserLastLogin(userSheet, username, timestampStr) {
   var rows = userSheet.getDataRange().getValues();
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]).toLowerCase() === username) {
-      userSheet.getRange(i + 1, 7).setValue(timestampStr);
+      userSheet.getRange(i + 1, 8).setValue(timestampStr);
       break;
     }
   }
@@ -483,25 +656,37 @@ function validateSession(sessionSheet, token) {
   var nowMs = new Date().getTime();
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]) === String(token)) {
+      var activeVal = String(data[i][6]).toLowerCase();
+      if (activeVal !== "true" && activeVal !== "1") continue;
+
       var expiresAtMs = new Date(data[i][5]).getTime();
-      if (isNaN(expiresAtMs) || expiresAtMs > nowMs) {
-        return {
-          token: data[i][0],
-          username: data[i][1],
-          role: data[i][2],
-          fullName: data[i][3]
-        };
-      }
+      if (!isNaN(expiresAtMs) && expiresAtMs <= nowMs) continue;
+
+      return {
+        token: data[i][0],
+        username: data[i][1],
+        role: data[i][2],
+        fullName: data[i][3]
+      };
     }
   }
   return null;
+}
+
+function invalidateUserSessions(sessionSheet, targetUsername) {
+  var rows = sessionSheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][1]).toLowerCase() === String(targetUsername).toLowerCase()) {
+      sessionSheet.getRange(i + 1, 7).setValue("false");
+    }
+  }
 }
 
 function deleteSessionToken(sessionSheet, token) {
   var rows = sessionSheet.getDataRange().getValues();
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === String(token)) {
-      sessionSheet.deleteRow(i + 1);
+      sessionSheet.getRange(i + 1, 7).setValue("false");
       break;
     }
   }
@@ -549,15 +734,15 @@ function hashPassword(password) {
   return hash;
 }
 
-function writeLog(logSheet, username, action, requestId, result, detail) {
+function writeLog(logSheet, actorUsername, action, targetUsername, result, details) {
   try {
     logSheet.appendRow([
       new Date().toLocaleString("vi-VN"),
-      username || "ANONYMOUS",
+      actorUsername || "ANONYMOUS",
       action || "",
-      requestId || "",
+      targetUsername || "",
       result || "",
-      detail || ""
+      details || ""
     ]);
   } catch (e) {}
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Shield, X, RefreshCw, Key, Trash2, CheckCircle2, AlertCircle, FileText, Loader2 } from 'lucide-react';
+import { Users, UserPlus, Shield, X, RefreshCw, Key, Trash2, CheckCircle2, AlertCircle, FileText, Loader2, Copy, Check } from 'lucide-react';
 import { AppSettings, UserAccount, UserRole, SystemLogEntry } from '../types';
-import { fetchUsersFromGoogleSheets, createUserInGoogleSheets, updateUserInGoogleSheets, deleteUserInGoogleSheets, fetchLogsFromGoogleSheets } from '../services/sheetsApi';
+import { fetchUsersFromGoogleSheets, createUserInGoogleSheets, updateUserInGoogleSheets, deleteUserInGoogleSheets, fetchLogsFromGoogleSheets, resetPasswordInGoogleSheets } from '../services/sheetsApi';
 
 interface UserManagementModalProps {
   settings: AppSettings;
@@ -29,6 +29,13 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<UserRole>('PROCESSOR');
   const [active, setActive] = useState(true);
+
+  // Temp password modal after reset
+  const [resetModalData, setResetModalData] = useState<{
+    username: string;
+    tempPassword: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const token = settings.token || 'ST-LOCAL-ADMIN';
 
@@ -80,6 +87,36 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setRole(u.role || 'PROCESSOR');
     setActive(u.active !== false);
     setShowForm(true);
+  };
+
+  const handleResetPassword = async (u: UserAccount) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn RESET MẬT KHẨU cho tài khoản "${u.username}" không?\nMột mật khẩu tạm thời ngẫu nhiên sẽ được tạo và các phiên đăng nhập hiện tại của người dùng này sẽ bị hủy.`)) {
+      return;
+    }
+
+    setLoading(true);
+    const res = await resetPasswordInGoogleSheets(u.username, settings, token);
+    setLoading(false);
+
+    if (res.success && res.data?.temporaryPassword) {
+      showToast('Reset mật khẩu thành công!', 'success');
+      setResetModalData({
+        username: u.username,
+        tempPassword: res.data.temporaryPassword,
+      });
+      loadUsers();
+    } else {
+      showToast(res.message || 'Reset mật khẩu thất bại', 'error');
+    }
+  };
+
+  const handleCopyTempPassword = () => {
+    if (resetModalData?.tempPassword) {
+      navigator.clipboard.writeText(resetModalData.tempPassword);
+      setCopied(true);
+      showToast('Đã chép mật khẩu tạm thời vào khay nhớ tạm!', 'success');
+      setTimeout(() => setCopied(false), 3000);
+    }
   };
 
   const handleSubmitForm = async (e: React.FormEvent) => {
@@ -231,6 +268,46 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
         {/* Modal Content */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4">
+          {/* TEMP PASSWORD POPUP MODAL */}
+          {resetModalData && (
+            <div className="bg-emerald-50 p-5 rounded-2xl border-2 border-emerald-400 space-y-3 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-emerald-900 font-extrabold text-sm uppercase">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  <span>RESET MẬT KHẨU THÀNH CÔNG!</span>
+                </div>
+                <button
+                  onClick={() => setResetModalData(null)}
+                  className="p-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="text-xs text-emerald-900 space-y-2">
+                <p>Tài khoản: <b className="font-mono text-sm text-blue-900">{resetModalData.username}</b></p>
+                <div className="p-3 bg-white rounded-xl border border-emerald-300 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-gray-500 block">Mật khẩu tạm thời:</span>
+                    <span className="font-mono text-base font-extrabold text-emerald-700 select-all tracking-wider">
+                      {resetModalData.tempPassword}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleCopyTempPassword}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs flex items-center space-x-1 shadow transition-colors"
+                  >
+                    {copied ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4" />}
+                    <span>{copied ? 'Đã sao chép' : 'Sao chép MK'}</span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-emerald-800 italic">
+                  * Vui lòng bàn giao mật khẩu tạm thời này cho người dùng. Người dùng sẽ bắt buộc phải đổi mật khẩu ngay trong lần đăng nhập tiếp theo.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* USER FORM MODAL SUB-VIEW */}
           {showForm ? (
             <form onSubmit={handleSubmitForm} className="bg-slate-50 p-5 rounded-2xl border border-blue-200 space-y-4">

@@ -14,6 +14,9 @@ import {
   Clock,
   ShieldCheck,
   Lock,
+  LogOut,
+  KeyRound,
+  User,
 } from 'lucide-react';
 import { ActiveTab, AppSettings } from '../types';
 
@@ -25,6 +28,8 @@ interface HeaderProps {
   repairCount: number;
   procurementCount: number;
   isAdminLoggedIn?: boolean;
+  onOpenChangePassword?: () => void;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,6 +40,8 @@ export const Header: React.FC<HeaderProps> = ({
   repairCount,
   procurementCount,
   isAdminLoggedIn = false,
+  onOpenChangePassword,
+  onLogout,
 }) => {
   const [time, setTime] = useState<string>('');
   const [date, setDate] = useState<string>('');
@@ -141,28 +148,59 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </button>
 
-            {/* Quick Settings Icon */}
-            <button
-              onClick={onOpenSettings}
-              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border transition-all ${
-                isAdminLoggedIn
-                  ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 hover:bg-emerald-900'
-                  : 'bg-blue-900/60 border-blue-700/60 text-blue-100 hover:bg-blue-800'
-              }`}
-              title={isAdminLoggedIn ? 'Cài đặt hệ thống (Đã đăng nhập Admin)' : 'Cài đặt hệ thống (Yêu cầu mật khẩu Admin)'}
-            >
-              {isAdminLoggedIn ? (
-                <>
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span className="text-[11px] font-bold hidden sm:inline">Admin</span>
-                </>
+            {/* Quick Settings & Auth Info */}
+            <div className="flex items-center space-x-1.5">
+              {isAdminLoggedIn || settings.currentUser ? (
+                <div className="flex items-center space-x-1.5 bg-blue-950/90 p-1 rounded-xl border border-blue-700/80">
+                  <div className="px-2 py-1 text-left hidden sm:block">
+                    <div className="text-[10px] text-amber-300 font-bold uppercase tracking-wider flex items-center space-x-1">
+                      <User className="w-3 h-3 text-amber-400" />
+                      <span>{settings.currentUser?.username || 'admin'} ({settings.currentUser?.role || 'ADMIN'})</span>
+                    </div>
+                  </div>
+
+                  {onOpenChangePassword && (
+                    <button
+                      onClick={onOpenChangePassword}
+                      className="p-1.5 bg-blue-900/80 hover:bg-blue-800 text-amber-300 rounded-lg border border-blue-700 transition-colors flex items-center space-x-1 text-xs font-semibold"
+                      title="Đổi mật khẩu tài khoản"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-amber-300" />
+                      <span className="hidden md:inline text-[11px]">Đổi MK</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={onOpenSettings}
+                    className="p-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 rounded-lg border border-emerald-500/60 transition-colors"
+                    title="Cài đặt hệ thống"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+
+                  {onLogout && (
+                    <button
+                      onClick={onLogout}
+                      className="p-1.5 bg-red-950/80 hover:bg-red-900 text-red-300 rounded-lg border border-red-500/60 transition-colors flex items-center space-x-1 text-xs font-semibold"
+                      title="Đăng xuất tài khoản"
+                    >
+                      <LogOut className="w-3.5 h-3.5 text-red-300" />
+                      <span className="hidden md:inline text-[11px]">Thoát</span>
+                    </button>
+                  )}
+                </div>
               ) : (
-                <>
+                <button
+                  onClick={onOpenSettings}
+                  className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border transition-all bg-blue-900/60 border-blue-700/60 text-blue-100 hover:bg-blue-800"
+                  title="Cài đặt hệ thống (Đăng nhập Cán bộ Quản lý)"
+                >
                   <Lock className="w-4 h-4 text-amber-300" />
+                  <span className="text-[11px] font-bold hidden sm:inline">Đăng nhập</span>
                   <Settings className="w-4 h-4" />
-                </>
+                </button>
               )}
-            </button>
+            </div>
           </div>
         </div>
       </div>
