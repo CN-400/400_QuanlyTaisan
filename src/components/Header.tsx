@@ -25,6 +25,7 @@ interface HeaderProps {
   setActiveTab: (tab: ActiveTab) => void;
   settings: AppSettings;
   onOpenSettings: () => void;
+  onOpenGuide?: () => void;
   repairCount: number;
   procurementCount: number;
   isAdminLoggedIn?: boolean;
@@ -37,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveTab,
   settings,
   onOpenSettings,
+  onOpenGuide,
   repairCount,
   procurementCount,
   isAdminLoggedIn = false,
@@ -150,6 +152,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Quick Settings & Auth Info */}
             <div className="flex items-center space-x-1.5">
+
               {settings.currentUser ? (
                 <div className="flex items-center space-x-1.5 bg-blue-950/90 p-1 rounded-xl border border-blue-700/80">
                   <div className="px-2 py-1 text-left hidden sm:block">
@@ -266,19 +269,6 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </button>
             </div>
-
-            {/* Guide Button */}
-            <button
-              onClick={() => setActiveTab('guide')}
-              className={`hidden md:flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all border ${
-                activeTab === 'guide'
-                  ? 'bg-amber-500 text-blue-950 border-amber-300'
-                  : 'bg-blue-900/50 text-amber-300 border-amber-500/40 hover:bg-blue-800'
-              }`}
-            >
-              <FileCode className="w-3.5 h-3.5" />
-              <span>Hướng dẫn Apps Script</span>
-            </button>
           </nav>
         </div>
       </div>

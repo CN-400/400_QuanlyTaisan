@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { FileCode, Settings } from 'lucide-react';
 import { ActiveTab, AppSettings, ProcurementRequest, RepairRequest } from './types';
 import {
   checkAndApplyUrlConfig,
@@ -155,6 +156,7 @@ export default function App() {
         setActiveTab={handleSelectTab}
         settings={settings}
         onOpenSettings={handleOpenSettings}
+        onOpenGuide={() => setShowGuideModal(true)}
         repairCount={repairRequests.filter((r) => r.status === 'Đề xuất').length}
         procurementCount={procurementRequests.filter((p) => p.status === 'Đề xuất').length}
         isAdminLoggedIn={Boolean(settings.token && settings.currentUser)}
@@ -220,18 +222,22 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center space-x-4 text-[11px] text-blue-300">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 text-xs">
             <button
               onClick={() => setShowGuideModal(true)}
-              className="hover:text-amber-300 transition-colors underline"
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg border border-amber-500/50 transition-all font-semibold"
+              title="Mở tài liệu hướng dẫn và lấy mã Code.gs Apps Script"
             >
-              Mã Code.gs Apps Script
+              <FileCode className="w-3.5 h-3.5 text-amber-400" />
+              <span>Hướng dẫn Apps Script & Mã Code.gs</span>
             </button>
-            <span>•</span>
+
             <button
               onClick={handleOpenSettings}
-              className="hover:text-white transition-colors underline flex items-center space-x-1"
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-blue-900/60 hover:bg-blue-800 text-blue-200 rounded-lg border border-blue-700/60 transition-all font-semibold"
+              title="Cài đặt hệ thống"
             >
+              <Settings className="w-3.5 h-3.5 text-blue-300" />
               <span>Cài đặt hệ thống</span>
             </button>
           </div>

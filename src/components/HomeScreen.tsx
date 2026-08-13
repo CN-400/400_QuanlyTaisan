@@ -8,10 +8,8 @@ import {
   Clock,
   AlertCircle,
   LayoutDashboard,
-  FileSpreadsheet,
   Building2,
   Sparkles,
-  Zap,
 } from 'lucide-react';
 import { ActiveTab, ProcurementRequest, RepairRequest } from '../types';
 
@@ -277,34 +275,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Google Sheets Integration Callout */}
-      <div className="bg-gradient-to-r from-slate-900 to-blue-950 text-white rounded-2xl p-6 shadow-md border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-600/30 border border-emerald-500/50 flex items-center justify-center shrink-0">
-            <FileSpreadsheet className="w-7 h-7 text-emerald-400" />
-          </div>
-          <div>
-            <h4 className="font-bold text-base text-white flex items-center space-x-2">
-              <span>Đồng bộ tự động vào Google Sheets qua Apps Script</span>
-              <span className="bg-emerald-500/20 text-emerald-300 text-[10px] px-2 py-0.5 rounded border border-emerald-500/40">
-                Apps Script API
-              </span>
-            </h4>
-            <p className="text-xs text-slate-300 mt-1">
-              Mỗi đề nghị sửa chữa hoặc mua sắm sau khi submit sẽ tự động tạo mã tự tăng và lưu dòng tương ứng vào sheet <code>SuaChua</code> hoặc <code>MuaSam</code>.
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={onOpenGuide}
-          className="shrink-0 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow transition-all flex items-center space-x-1.5"
-        >
-          <Zap className="w-4 h-4" />
-          <span>Xem mã Code.gs & Hướng dẫn</span>
-        </button>
       </div>
     </div>
   );
