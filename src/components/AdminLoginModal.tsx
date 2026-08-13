@@ -79,6 +79,9 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
           fullName: 'Quản trị viên Hệ thống',
           role: 'ADMIN',
           active: true,
+          canEdit: true,
+          canDelete: true,
+          canPrint: true,
         },
       });
     } else {

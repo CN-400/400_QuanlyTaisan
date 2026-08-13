@@ -150,12 +150,14 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Quick Settings & Auth Info */}
             <div className="flex items-center space-x-1.5">
-              {isAdminLoggedIn || settings.currentUser ? (
+              {settings.currentUser ? (
                 <div className="flex items-center space-x-1.5 bg-blue-950/90 p-1 rounded-xl border border-blue-700/80">
                   <div className="px-2 py-1 text-left hidden sm:block">
                     <div className="text-[10px] text-amber-300 font-bold uppercase tracking-wider flex items-center space-x-1">
                       <User className="w-3 h-3 text-amber-400" />
-                      <span>{settings.currentUser?.username || 'admin'} ({settings.currentUser?.role || 'ADMIN'})</span>
+                      <span>
+                        {settings.currentUser.fullName || settings.currentUser.username} ({settings.currentUser.role || 'ADMIN'})
+                      </span>
                     </div>
                   </div>
 
@@ -170,13 +172,15 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>
                   )}
 
-                  <button
-                    onClick={onOpenSettings}
-                    className="p-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 rounded-lg border border-emerald-500/60 transition-colors"
-                    title="Cài đặt hệ thống"
-                  >
-                    <Settings className="w-4 h-4" />
-                  </button>
+                  {settings.currentUser.role === 'ADMIN' && (
+                    <button
+                      onClick={onOpenSettings}
+                      className="p-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 rounded-lg border border-emerald-500/60 transition-colors"
+                      title="Cài đặt hệ thống (Dành cho Admin)"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  )}
 
                   {onLogout && (
                     <button
@@ -192,12 +196,11 @@ export const Header: React.FC<HeaderProps> = ({
               ) : (
                 <button
                   onClick={onOpenSettings}
-                  className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border transition-all bg-blue-900/60 border-blue-700/60 text-blue-100 hover:bg-blue-800"
-                  title="Cài đặt hệ thống (Đăng nhập Cán bộ Quản lý)"
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border transition-all bg-amber-500/20 border-amber-400/50 text-amber-200 hover:bg-amber-500/30 font-bold text-xs"
+                  title="Đăng nhập Cán bộ Quản lý & Xử lý"
                 >
-                  <Lock className="w-4 h-4 text-amber-300" />
-                  <span className="text-[11px] font-bold hidden sm:inline">Đăng nhập</span>
-                  <Settings className="w-4 h-4" />
+                  <Lock className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Đăng nhập</span>
                 </button>
               )}
             </div>

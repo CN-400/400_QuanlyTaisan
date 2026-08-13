@@ -1,4 +1,4 @@
-import { AppSettings, ProcurementRequest, RepairRequest, RequestStatus } from '../types';
+import { AppSettings, ProcurementRequest, RepairRequest, RequestStatus, UserAccount, UserRole } from '../types';
 import { DEFAULT_APPS_SCRIPT_URL, isValidAppsScriptUrl } from '../constants/config';
 
 export interface SyncResult {
@@ -134,11 +134,27 @@ export async function loginUser(
     });
 
     if (result && (result.success || result.status === 'success')) {
-      const userObj = result.user || result.data?.user || {
-        username,
-        fullName: username,
-        role: result.role || 'PROCESSOR',
+      const rawUser = result.user || result.data?.user || {};
+      const userRole: UserRole = (rawUser.role || rawUser.Role || result.role || 'PROCESSOR') as UserRole;
+      
+      const parseBool = (val: any, defaultVal: boolean) => {
+        if (val === undefined || val === null || val === '') return defaultVal;
+        if (typeof val === 'boolean') return val;
+        const str = String(val).toLowerCase().trim();
+        return str === 'true' || str === '1' || str === 'yes';
       };
+
+      const userObj: UserAccount = {
+        username: String(rawUser.username || rawUser.Username || username).trim(),
+        fullName: String(rawUser.fullName || rawUser.FullName || username).trim(),
+        role: userRole,
+        active: parseBool(rawUser.active ?? rawUser.Active, true),
+        mustChangePassword: parseBool(rawUser.mustChangePassword ?? rawUser.MustChangePassword, false),
+        canEdit: parseBool(rawUser.canEdit ?? rawUser.CanEdit, true),
+        canDelete: parseBool(rawUser.canDelete ?? rawUser.CanDelete, userRole === 'ADMIN' || userRole === 'MANAGER'),
+        canPrint: parseBool(rawUser.canPrint ?? rawUser.CanPrint, true),
+      };
+
       const tokenVal = result.token || result.data?.token;
       return {
         success: true,
@@ -176,14 +192,33 @@ export async function validateSessionApi(webAppUrl: string, token: string): Prom
     });
 
     if (result && (result.success || result.status === 'success')) {
+      const rawUser = result.user || result.data?.user || result.data || result;
+      const userRole: UserRole = (rawUser.role || rawUser.Role || 'PROCESSOR') as UserRole;
+
+      const parseBool = (val: any, defaultVal: boolean) => {
+        if (val === undefined || val === null || val === '') return defaultVal;
+        if (typeof val === 'boolean') return val;
+        const str = String(val).toLowerCase().trim();
+        return str === 'true' || str === '1' || str === 'yes';
+      };
+
+      const userObj: UserAccount = {
+        username: String(rawUser.username || rawUser.Username || '').trim(),
+        fullName: String(rawUser.fullName || rawUser.FullName || '').trim(),
+        role: userRole,
+        active: parseBool(rawUser.active ?? rawUser.Active, true),
+        mustChangePassword: parseBool(rawUser.mustChangePassword ?? rawUser.MustChangePassword, false),
+        canEdit: parseBool(rawUser.canEdit ?? rawUser.CanEdit, true),
+        canDelete: parseBool(rawUser.canDelete ?? rawUser.CanDelete, userRole === 'ADMIN' || userRole === 'MANAGER'),
+        canPrint: parseBool(rawUser.canPrint ?? rawUser.CanPrint, true),
+      };
+
       return {
         success: true,
         message: 'Phiên đăng nhập hợp lệ!',
-        data: result.data || {
-          username: result.username,
-          fullName: result.fullName,
-          role: result.role,
-          mustChangePassword: result.mustChangePassword,
+        data: {
+          token,
+          user: userObj,
         },
       };
     } else {

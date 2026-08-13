@@ -41,6 +41,7 @@ interface AdminDashboardProps {
   onUpdateSettings?: (newSettings: AppSettings) => void;
   showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   onOpenGuide: () => void;
+  onRequireLogin?: () => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -52,6 +53,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onUpdateSettings,
   showToast,
   onOpenGuide,
+  onRequireLogin,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'repair' | 'procurement'>('repair');
   const [showUserModal, setShowUserModal] = useState<boolean>(false);
@@ -73,7 +75,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     request: RepairRequest | ProcurementRequest;
   } | null>(null);
 
-  // Sensitive Action Permission Lock Modal State
+  // Sensitive Action Permission Lock Modal State (Kept as fallback)
   const [actionPermissionModal, setActionPermissionModal] = useState<{
     action: 'EDIT' | 'DELETE' | 'PRINT';
     type: 'repair' | 'procurement';
@@ -82,17 +84,74 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const [syncing, setSyncing] = useState<boolean>(false);
 
-  // Trigger Action Permission Modal
-  const handleTriggerAction = (
+  const currentUser = settings.currentUser;
+  const isAdmin = currentUser?.role === 'ADMIN';
+
+  // Trigger Action Permission Check (Single Login Flow V6.3.5)
+  const handleTriggerAction = async (
     action: 'EDIT' | 'DELETE' | 'PRINT',
     type: 'repair' | 'procurement',
     request: RepairRequest | ProcurementRequest
   ) => {
-    setActionPermissionModal({
-      action,
-      type,
-      request,
-    });
+    // 1. If user is not logged in
+    if (!currentUser || !settings.token) {
+      showToast('Bạn không có quyền truy cập chức năng này. Vui lòng đăng nhập!', 'error');
+      if (onRequireLogin) {
+        onRequireLogin();
+      }
+      return;
+    }
+
+    // 2. User is logged in -> Check specific permissions
+    if (action === 'EDIT') {
+      if (currentUser.canEdit !== false) {
+        setUpdatingItem({ type, request });
+      } else {
+        showToast('Bạn không được cấp quyền Chỉnh sửa.', 'error');
+      }
+    } else if (action === 'PRINT') {
+      if (currentUser.canPrint !== false) {
+        setPrintingItem({ type, request });
+      } else {
+        showToast('Bạn không được cấp quyền In.', 'error');
+      }
+    } else if (action === 'DELETE') {
+      if (currentUser.canDelete === true || (isAdmin && currentUser.canDelete !== false)) {
+        if (window.confirm(`Bạn có chắc chắn muốn xóa hồ sơ ${request.id} này?`)) {
+          if (settings.webAppUrl) {
+            const res = await deleteRecordInGoogleSheets(type, request.id, settings);
+            if (res.success) {
+              if (type === 'repair') {
+                const updated = repairRequests.filter((r) => r.id !== request.id);
+                setRepairRequests(updated);
+                saveRepairRequests(updated);
+              } else {
+                const updated = procurementRequests.filter((p) => p.id !== request.id);
+                setProcurementRequests(updated);
+                saveProcurementRequests(updated);
+              }
+              showToast(`Đã xóa thành công hồ sơ ${request.id} khỏi hệ thống và Google Sheets.`, 'success');
+            } else {
+              showToast(`Xóa thất bại từ Google Sheets: ${res.message}`, 'error');
+            }
+          } else {
+            // Local fallback
+            if (type === 'repair') {
+              const updated = repairRequests.filter((r) => r.id !== request.id);
+              setRepairRequests(updated);
+              saveRepairRequests(updated);
+            } else {
+              const updated = procurementRequests.filter((p) => p.id !== request.id);
+              setProcurementRequests(updated);
+              saveProcurementRequests(updated);
+            }
+            showToast(`Đã xóa hồ sơ ${request.id}`, 'info');
+          }
+        }
+      } else {
+        showToast('Bạn không được cấp quyền Xóa.', 'error');
+      }
+    }
   };
 
   const handleActionAuthorized = async (authUser: { username: string; fullName: string; permission: string }) => {
@@ -107,24 +166,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setPrintingItem({ type, request });
     } else if (action === 'DELETE') {
       if (window.confirm(`XÁC NHẬN XÓA: Bạn có chắc chắn muốn xóa vĩnh viễn hồ sơ [${request.id}] không?`)) {
-        if (type === 'repair') {
-          const updated = repairRequests.filter((r) => r.id !== request.id);
-          setRepairRequests(updated);
-          saveRepairRequests(updated);
-        } else {
-          const updated = procurementRequests.filter((p) => p.id !== request.id);
-          setProcurementRequests(updated);
-          saveProcurementRequests(updated);
-        }
-
         if (settings.webAppUrl) {
           const res = await deleteRecordInGoogleSheets(type, request.id, settings, authUser.username);
           if (res.success) {
+            if (type === 'repair') {
+              const updated = repairRequests.filter((r) => r.id !== request.id);
+              setRepairRequests(updated);
+              saveRepairRequests(updated);
+            } else {
+              const updated = procurementRequests.filter((p) => p.id !== request.id);
+              setProcurementRequests(updated);
+              saveProcurementRequests(updated);
+            }
             showToast(`Đã xóa thành công hồ sơ ${request.id} khỏi hệ thống và Google Sheets.`, 'success');
           } else {
-            showToast(`Đã xóa local, Google Sheets phản hồi: ${res.message}`, 'info');
+            showToast(`Không thể xóa từ Google Sheets: ${res.message}`, 'error');
           }
         } else {
+          if (type === 'repair') {
+            const updated = repairRequests.filter((r) => r.id !== request.id);
+            setRepairRequests(updated);
+            saveRepairRequests(updated);
+          } else {
+            const updated = procurementRequests.filter((p) => p.id !== request.id);
+            setProcurementRequests(updated);
+            saveProcurementRequests(updated);
+          }
           showToast(`Đã xóa hồ sơ ${request.id}`, 'info');
         }
       }
@@ -468,13 +535,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
 
           <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-            <button
-              onClick={() => setShowUserModal(true)}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-extrabold rounded-xl shadow transition-all flex items-center space-x-1.5"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Quản Lý Tài Khoản (RBAC)</span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setShowUserModal(true)}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-extrabold rounded-xl shadow transition-all flex items-center space-x-1.5"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Quản Lý Tài Khoản (RBAC)</span>
+              </button>
+            )}
 
             <button
               onClick={handleFetchGoogleSheets}

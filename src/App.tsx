@@ -127,11 +127,30 @@ export default function App() {
   };
 
   const handleOpenSettings = () => {
-    if (isAdminLoggedIn) {
-      setShowSettingsModal(true);
+    if (settings.currentUser) {
+      if (settings.currentUser.role === 'ADMIN') {
+        setShowSettingsModal(true);
+      } else {
+        showToastHandler('Chỉ tài khoản Quản trị viên (ADMIN) mới có quyền truy cập Cài đặt hệ thống!', 'error');
+      }
     } else {
       setShowAdminLoginModal(true);
     }
+  };
+
+  const handleSelectTab = (tab: ActiveTab) => {
+    if (tab === 'guide') {
+      setShowGuideModal(true);
+      return;
+    }
+
+    if (tab === 'admin' && !settings.currentUser) {
+      showToastHandler('Vui lòng đăng nhập tài khoản (ADMIN / MANAGER / PROCESSOR) để truy cập!', 'info');
+      setShowAdminLoginModal(true);
+      return;
+    }
+
+    setActiveTab(tab);
   };
 
   return (
@@ -139,18 +158,12 @@ export default function App() {
       {/* Top Banking Navbar */}
       <Header
         activeTab={activeTab}
-        setActiveTab={(tab) => {
-          if (tab === 'guide') {
-            setShowGuideModal(true);
-          } else {
-            setActiveTab(tab);
-          }
-        }}
+        setActiveTab={handleSelectTab}
         settings={settings}
         onOpenSettings={handleOpenSettings}
         repairCount={repairRequests.filter((r) => r.status === 'Đề xuất').length}
         procurementCount={procurementRequests.filter((p) => p.status === 'Đề xuất').length}
-        isAdminLoggedIn={isAdminLoggedIn}
+        isAdminLoggedIn={Boolean(settings.token && settings.currentUser)}
         onOpenChangePassword={() => setShowChangePasswordModal(true)}
         onLogout={handleLogout}
       />
@@ -159,7 +172,7 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {activeTab === 'home' && (
           <HomeScreen
-            setActiveTab={setActiveTab}
+            setActiveTab={handleSelectTab}
             repairRequests={repairRequests}
             procurementRequests={procurementRequests}
             onOpenGuide={() => setShowGuideModal(true)}
@@ -196,6 +209,7 @@ export default function App() {
             onUpdateSettings={handleUpdateSettings}
             showToast={showToastHandler}
             onOpenGuide={() => setShowGuideModal(true)}
+            onRequireLogin={() => setShowAdminLoginModal(true)}
           />
         )}
       </main>
@@ -246,8 +260,13 @@ export default function App() {
               };
               saveAppSettings(updated);
               setSettings(updated);
+
+              if (sessionData.user?.role === 'ADMIN') {
+                setActiveTab('admin');
+              } else {
+                setActiveTab('admin');
+              }
             }
-            setShowSettingsModal(true);
           }}
           onClose={() => setShowAdminLoginModal(false)}
           showToast={showToastHandler}
