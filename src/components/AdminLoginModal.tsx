@@ -19,7 +19,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   onClose,
   showToast,
 }) => {
-  const [usernameInput, setUsernameInput] = useState('admin');
+  const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -198,21 +198,6 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             {errorMsg && (
               <p className="mt-1.5 text-xs text-red-600 font-semibold animate-pulse">{errorMsg}</p>
             )}
-
-            <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 p-2 rounded-lg border border-gray-200 flex items-center justify-between">
-              <span>Tài khoản Admin mặc định:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsernameInput('admin');
-                  setPasswordInput(currentPassword || 'admin123');
-                  setErrorMsg('');
-                }}
-                className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-300 font-bold font-mono transition-colors text-[11px]"
-              >
-                Tự điền (admin / {currentPassword || 'admin123'})
-              </button>
-            </div>
           </div>
 
           <div className="pt-3 border-t border-gray-100 flex items-center justify-end space-x-2">
