@@ -14,11 +14,13 @@ import {
   ArrowLeft,
   Loader2,
   ShieldAlert,
+  Printer,
 } from 'lucide-react';
 import { DEPARTMENTS, URGENCY_LEVELS } from '../constants/data';
 import { AppSettings, RepairRequest, UrgencyLevel } from '../types';
 import { generateNextRepairId, saveRepairRequests } from '../services/storage';
 import { syncRepairToGoogleSheets } from '../services/sheetsApi';
+import { PrintTicketModal } from './PrintTicketModal';
 
 interface RepairFormProps {
   repairRequests: RepairRequest[];
@@ -51,6 +53,7 @@ export const RepairForm: React.FC<RepairFormProps> = ({
 
   const [loading, setLoading] = useState<boolean>(false);
   const [successRequest, setSuccessRequest] = useState<RepairRequest | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
 
   useEffect(() => {
     setNextId(generateNextRepairId(repairRequests));
@@ -233,6 +236,14 @@ export const RepairForm: React.FC<RepairFormProps> = ({
 
             <div className="flex flex-wrap justify-center gap-3 pt-4">
               <button
+                onClick={() => setShowPrintModal(true)}
+                className="px-6 py-2.5 bg-gradient-to-r from-[#00529C] to-blue-800 hover:from-blue-800 hover:to-blue-900 text-white font-bold rounded-xl shadow-lg hover:shadow-blue-900/40 transition-all flex items-center space-x-2 transform hover:-translate-y-0.5 cursor-pointer"
+              >
+                <Printer className="w-5 h-5 text-amber-300" />
+                <span>Xem & In / Xuất PDF Phiếu Đề Nghị</span>
+              </button>
+
+              <button
                 onClick={handleReset}
                 className="px-6 py-2.5 bg-red-700 hover:bg-red-800 text-white font-bold rounded-xl shadow transition-all flex items-center space-x-2"
               >
@@ -247,6 +258,15 @@ export const RepairForm: React.FC<RepairFormProps> = ({
                 Trở về Trang chủ
               </button>
             </div>
+
+            {/* Print Ticket Modal */}
+            {showPrintModal && successRequest && (
+              <PrintTicketModal
+                type="repair"
+                request={successRequest}
+                onClose={() => setShowPrintModal(false)}
+              />
+            )}
           </div>
         ) : (
           /* Actual Input Form */

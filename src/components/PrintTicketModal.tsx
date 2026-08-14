@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { X, Printer, Download, FileText, Loader2 } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
+import { X, Printer, Download, FileText, Loader2, LogOut } from 'lucide-react';
 import { ProcurementRequest, RepairRequest } from '../types';
 
 interface PrintTicketModalProps {
@@ -20,6 +20,17 @@ export const PrintTicketModal: React.FC<PrintTicketModalProps> = ({
   const procurementReq = !isRepair ? (request as ProcurementRequest) : null;
   const printRef = useRef<HTMLDivElement>(null);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
+
+  // Listen to ESC key to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   // Smart Print handler: handles iframe restrictions gracefully
   const handlePrint = () => {
@@ -182,31 +193,36 @@ export const PrintTicketModal: React.FC<PrintTicketModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full my-8 overflow-hidden border border-gray-300">
-        {/* Header Action Bar - Hidden when printing */}
-        <div className="bg-[#00529C] text-white p-4 flex items-center justify-between print:hidden">
-          <span className="text-xs font-semibold uppercase tracking-wider text-amber-300 flex items-center space-x-1.5">
-            <Printer className="w-4 h-4" />
-            <span>Xem trước Phiếu Đề Nghị Để In</span>
-          </span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full my-auto overflow-hidden border border-gray-300 max-h-[95vh] flex flex-col">
+        {/* Sticky Header Action Bar */}
+        <div className="bg-[#00529C] text-white px-4 py-3 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 print:hidden shrink-0 shadow-md border-b-2 border-amber-400">
+          <div className="flex items-center space-x-2">
+            <Printer className="w-5 h-5 text-amber-300 shrink-0" />
+            <span className="text-sm font-bold uppercase tracking-wider text-amber-300">
+              Xem trước Phiếu Đề Nghị
+            </span>
+            <span className="hidden md:inline-block text-xs bg-blue-900/80 text-blue-200 px-2 py-0.5 rounded border border-blue-400/40">
+              Phím ESC để đóng
+            </span>
+          </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Download PDF Button */}
             <button
               onClick={handleExportPDF}
               disabled={isExportingPDF}
-              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-lg text-xs shadow transition-all flex items-center space-x-1.5"
-              title="Xuất phiếu ra file PDF để lưu trữ hoặc in sau"
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs sm:text-sm shadow transition-all flex items-center space-x-1.5 cursor-pointer transform hover:scale-105 active:scale-95"
+              title="Xuất phiếu ra file PDF chuẩn A4"
             >
               {isExportingPDF ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Đang Xuất PDF...</span>
                 </>
               ) : (
                 <>
-                  <Download className="w-3.5 h-3.5" />
+                  <Download className="w-4 h-4" />
                   <span>Xuất File PDF</span>
                 </>
               )}
@@ -215,38 +231,41 @@ export const PrintTicketModal: React.FC<PrintTicketModalProps> = ({
             {/* Direct Print Button */}
             <button
               onClick={handlePrint}
-              className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs shadow transition-all flex items-center space-x-1.5"
+              className="px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-xl text-xs sm:text-sm shadow transition-all flex items-center space-x-1.5 cursor-pointer transform hover:scale-105 active:scale-95"
               title="In phiếu trực tiếp từ trình duyệt"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>In Phiếu Trực Tiếp</span>
+              <Printer className="w-4 h-4" />
+              <span>In Trực Tiếp</span>
             </button>
 
             {/* Print in New Window Button (for iframe compatibility) */}
             <button
               onClick={handlePrintInNewWindow}
-              className="px-3 py-1.5 bg-blue-700 hover:bg-blue-600 text-white font-semibold rounded-lg text-xs shadow transition-all flex items-center space-x-1"
-              title="Mở phiếu sang cửa sổ mới để in nếu trình duyệt chặn lệnh in"
+              className="px-3 py-1.5 bg-blue-700 hover:bg-blue-600 text-white font-bold rounded-xl text-xs sm:text-sm shadow transition-all flex items-center space-x-1 cursor-pointer transform hover:scale-105 active:scale-95"
+              title="Mở phiếu sang cửa sổ mới để in"
             >
-              <FileText className="w-3.5 h-3.5 text-blue-200" />
+              <FileText className="w-4 h-4 text-blue-200" />
               <span className="hidden sm:inline">Mở Cửa Sổ In</span>
             </button>
 
+            {/* Top Close Button */}
             <button
               onClick={onClose}
-              className="p-1.5 text-blue-100 hover:text-white hover:bg-white/10 rounded-lg transition-colors ml-1"
+              className="p-1.5 text-blue-100 hover:text-white hover:bg-white/10 rounded-xl transition-colors ml-1"
+              title="Đóng cửa sổ xem trước (ESC)"
             >
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6" />
             </button>
           </div>
         </div>
 
-        {/* Printable Ticket Area with Standard Serif Font (Times New Roman for Formal Bank Docs) */}
-        <div
-          ref={printRef}
-          className="p-8 sm:p-10 space-y-6 bg-white text-gray-900 print:p-0 print:m-0 text-xs sm:text-sm"
-          style={{ fontFamily: '"Times New Roman", Times, serif' }}
-        >
+        {/* Scrollable Printable Area */}
+        <div className="p-4 sm:p-8 bg-gray-100/80 overflow-y-auto flex-1">
+          <div
+            ref={printRef}
+            className="p-6 sm:p-10 space-y-6 bg-white text-gray-900 border border-gray-300 rounded-xl shadow-md text-xs sm:text-sm max-w-3xl mx-auto"
+            style={{ fontFamily: '"Times New Roman", Times, serif' }}
+          >
           {/* Top Bank Header */}
           <div className="flex justify-between items-start border-b-2 border-[#00529C] pb-4">
             <div className="flex items-start space-x-3 sm:space-x-4">
@@ -419,6 +438,41 @@ export const PrintTicketModal: React.FC<PrintTicketModalProps> = ({
                 <div className="font-bold text-gray-900">........................................</div>
               </div>
             </div>
+          </div>
+        </div> </div>
+        {/* End Scrollable Area */}
+
+        {/* Bottom Sticky Action Footer Bar */}
+        <div className="bg-slate-800 text-white p-3.5 sm:px-6 flex flex-wrap items-center justify-between gap-3 shrink-0 print:hidden border-t border-slate-700">
+          <div className="text-xs text-slate-300 font-medium hidden sm:block">
+            Mẹo: Nhấn phím <kbd className="bg-slate-700 text-amber-300 px-2 py-0.5 rounded border border-slate-600 font-mono font-bold">ESC</kbd> trên bàn phím để thoát nhanh.
+          </div>
+
+          <div className="flex items-center space-x-3 ml-auto">
+            <button
+              onClick={handleExportPDF}
+              disabled={isExportingPDF}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs sm:text-sm transition-all flex items-center space-x-1.5"
+            >
+              <Download className="w-4 h-4" />
+              <span>Tải File PDF</span>
+            </button>
+
+            <button
+              onClick={handlePrint}
+              className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-xl text-xs sm:text-sm transition-all flex items-center space-x-1.5"
+            >
+              <Printer className="w-4 h-4" />
+              <span>In Ngay</span>
+            </button>
+
+            <button
+              onClick={onClose}
+              className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs sm:text-sm shadow transition-all flex items-center space-x-1.5 cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Thoát / Đóng (ESC)</span>
+            </button>
           </div>
         </div>
       </div>

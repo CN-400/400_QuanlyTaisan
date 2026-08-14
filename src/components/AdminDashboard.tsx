@@ -93,27 +93,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     type: 'repair' | 'procurement',
     request: RepairRequest | ProcurementRequest
   ) => {
-    // 1. If user is not logged in
+    // 1. PRINT action is accessible to all users for viewing/printing tickets
+    if (action === 'PRINT') {
+      setPrintingItem({ type, request });
+      return;
+    }
+
+    // 2. EDIT and DELETE require logged-in user session
     if (!currentUser || !settings.token) {
-      showToast('Vui lòng đăng nhập tài khoản Cán bộ để xem chi tiết, sửa hoặc xóa thông tin!', 'info');
+      showToast('Vui lòng đăng nhập tài khoản Cán bộ để thực hiện thao tác này!', 'info');
       if (onRequireLogin) {
         onRequireLogin();
       }
       return;
     }
 
-    // 2. User is logged in -> Check specific permissions
+    // 3. User is logged in -> Check specific permissions
     if (action === 'EDIT') {
       if (currentUser.canEdit !== false) {
         setUpdatingItem({ type, request });
       } else {
         showToast('Bạn không được cấp quyền Chỉnh sửa.', 'error');
-      }
-    } else if (action === 'PRINT') {
-      if (currentUser.canPrint !== false) {
-        setPrintingItem({ type, request });
-      } else {
-        showToast('Bạn không được cấp quyền In.', 'error');
       }
     } else if (action === 'DELETE') {
       if (currentUser.canDelete === true || (isAdmin && currentUser.canDelete !== false)) {
