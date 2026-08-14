@@ -75,32 +75,36 @@ export const Header: React.FC<HeaderProps> = ({
   const totalPending = repairCount + procurementCount;
 
   return (
-    <header className="bg-[#002060] text-white shadow-xl border-b-4 border-[#C00000] sticky top-0 z-40">
+    <header className="bg-[#00529C] text-white shadow-xl border-b-4 border-[#ED1C24] sticky top-0 z-40">
       {/* Top Banner Row */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
         <div className="flex flex-col md:flex-row items-center justify-between gap-3">
           {/* Brand Logo & Name */}
           <div
             onClick={() => setActiveTab('home')}
             className="flex items-center space-x-3 cursor-pointer group"
           >
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center text-white font-extrabold shadow-md border border-red-400 transform group-hover:scale-105 transition-all">
-              <Building2 className="w-7 h-7 text-white" />
+            <div className="bg-white px-3 py-1.5 rounded-xl shadow-md border border-white/40 flex items-center justify-center shrink-0 transform group-hover:scale-105 transition-all">
+              <img
+                src="https://raw.githubusercontent.com/giadinhbanker/anh-super-app-bac-phu-tho/main/Logo%20VietinBank.png"
+                alt="VietinBank Logo"
+                className="h-9 sm:h-11 w-auto object-contain"
+              />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="text-xs uppercase tracking-widest text-red-300 font-semibold">
-                  NGÂN HÀNG TMCP VIETINBANK-CN NINH BÌNH
+                <span className="text-xs uppercase tracking-widest text-amber-200 font-extrabold">
+                  NGÂN HÀNG TMCP VIETINBANK - CN NINH BÌNH
                 </span>
-                <span className="text-[10px] bg-red-900/80 text-red-200 px-2 py-0.5 rounded font-mono">
+                <span className="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded font-mono font-bold shadow-sm">
                   v2.0
                 </span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white group-hover:text-amber-200 transition-colors">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-black tracking-tight text-white group-hover:text-amber-200 transition-colors uppercase">
                 ĐĂNG KÝ SỬA CHỮA VÀ MUA SẮM TÀI SẢN TẠI CN VIETINBANK NINH BÌNH
               </h1>
-              <p className="text-xs text-blue-200 hidden sm:block">
-                {settings.bankBranchName || 'NGÂN HÀNG TMCP VIETINBANK-CN NINH BÌNH'}
+              <p className="text-xs text-blue-100 hidden sm:block font-medium">
+                {settings.bankBranchName || 'NGÂN HÀNG TMCP VIETINBANK - CHI NHÁNH NINH BÌNH'}
               </p>
             </div>
           </div>

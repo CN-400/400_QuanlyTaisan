@@ -82,14 +82,18 @@ export const ActionPermissionLoginModal: React.FC<ActionPermissionLoginModalProp
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
       <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-gray-200 transform transition-all">
         {/* Header */}
-        <div className={`${headerBg} text-white p-5 flex items-center justify-between relative`}>
+        <div className={`${headerBg} text-white p-5 flex items-center justify-between relative border-b-4 border-[#ED1C24]`}>
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-white/10 rounded-xl border border-white/20">
-              {icon}
+            <div className="bg-white p-1.5 rounded-xl shadow-sm flex items-center justify-center shrink-0">
+              <img
+                src="https://raw.githubusercontent.com/giadinhbanker/anh-super-app-bac-phu-tho/main/Logo%20VietinBank.png"
+                alt="VietinBank"
+                className="h-8 w-auto object-contain"
+              />
             </div>
             <div>
-              <h3 className="font-extrabold text-lg uppercase tracking-wide text-white">{title}</h3>
-              <p className="text-xs text-blue-100 font-medium">VIETINBANK CHI NHÁNH NINH BÌNH</p>
+              <h3 className="font-black text-base sm:text-lg uppercase tracking-wide text-white">{title}</h3>
+              <p className="text-xs text-blue-100 font-medium">NGÂN HÀNG TMCP VIETINBANK - CN NINH BÌNH</p>
             </div>
           </div>
           <button

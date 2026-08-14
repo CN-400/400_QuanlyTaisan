@@ -211,14 +211,23 @@ export default function App() {
       </main>
 
       {/* System Footer */}
-      <footer className="bg-[#001845] text-blue-200 text-xs border-t border-blue-900 py-6 mt-12">
+      <footer className="bg-[#00529C] text-blue-100 text-xs border-t-4 border-[#ED1C24] py-6 mt-12 shadow-inner">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-          <div>
-            <div className="font-bold text-white text-sm uppercase tracking-wide">
-              Ứng dụng đăng ký sửa chữa và mua sắm tại CN Vietinbank Ninh Bình
+          <div className="flex items-center space-x-3">
+            <div className="bg-white p-2 rounded-xl shadow-md border border-white/40 shrink-0">
+              <img
+                src="https://raw.githubusercontent.com/giadinhbanker/anh-super-app-bac-phu-tho/main/Logo%20VietinBank.png"
+                alt="VietinBank"
+                className="h-8 w-auto object-contain"
+              />
             </div>
-            <div className="text-blue-300 text-[11px] mt-0.5">
-              Tự động hóa đăng ký, phân công xử lý & lưu trữ dữ liệu trung tâm Google Sheets
+            <div>
+              <div className="font-extrabold text-white text-sm uppercase tracking-wide">
+                HỆ THỐNG ĐĂNG KÝ SỬA CHỮA VÀ MUA SẮM TÀI SẢN - VIETINBANK
+              </div>
+              <div className="text-blue-100 text-[11px] mt-0.5 font-medium">
+                Ngân hàng TMCP Công Thương Việt Nam - Chi nhánh Ninh Bình
+              </div>
             </div>
           </div>
 

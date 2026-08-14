@@ -42,25 +42,34 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Hero Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#002060] via-[#003366] to-[#001845] text-white p-6 sm:p-8 shadow-xl border border-blue-800">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#00529C] via-[#003B70] to-[#002060] text-white p-6 sm:p-8 shadow-xl border-l-8 border-[#ED1C24]">
         <div className="absolute right-0 top-0 opacity-10 pointer-events-none transform translate-x-10 -translate-y-10">
           <Building2 className="w-96 h-96 text-white" />
         </div>
 
-        <div className="relative z-10 max-w-3xl space-y-4">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Sử dụng nội bộ tại Vietinbank Ninh Bình</span>
+        <div className="relative z-10 max-w-4xl space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="bg-white px-3 py-1 rounded-xl shadow-md border border-white/40 flex items-center shrink-0">
+              <img
+                src="https://raw.githubusercontent.com/giadinhbanker/anh-super-app-bac-phu-tho/main/Logo%20VietinBank.png"
+                alt="VietinBank Logo"
+                className="h-8 sm:h-10 w-auto object-contain"
+              />
+            </div>
+            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-red-600/30 text-white border border-red-400/40 text-xs font-bold shadow-sm">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Sử dụng nội bộ tại VietinBank Ninh Bình</span>
+            </div>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight uppercase">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white leading-tight uppercase">
             ĐĂNG KÝ SỬA CHỮA VÀ MUA SẮM TÀI SẢN TẠI CN VIETINBANK NINH BÌNH
           </h1>
 
-          <p className="text-sm sm:text-base text-blue-100 leading-relaxed">
-            Hệ thống hỗ trợ cán bộ nhân viên đăng ký{' '}
-            <strong className="text-amber-300 font-semibold">sửa chữa, bảo trì</strong> tài sản hỏng hóc và{' '}
-            <strong className="text-emerald-300 font-semibold">đề xuất mua sắm</strong> trang thiết bị mới. Tự động lưu trữ dữ liệu tập trung trên Google Sheets qua Google Apps Script API.
+          <p className="text-sm sm:text-base text-blue-100 leading-relaxed max-w-3xl font-medium">
+            Hệ thống chuẩn hoá quy trình quản lý tài sản nội bộ ngân hàng VietinBank: Hỗ trợ cán bộ nhân viên đăng ký{' '}
+            <strong className="text-amber-300 font-bold">sửa chữa, bảo trì</strong> tài sản hỏng hóc và{' '}
+            <strong className="text-emerald-300 font-bold">đề xuất mua sắm</strong> trang thiết bị mới. Tự động lưu trữ và đồng bộ dữ liệu tập trung trên Google Sheets qua Google Apps Script.
           </p>
 
           <div className="flex flex-wrap gap-3 pt-2">

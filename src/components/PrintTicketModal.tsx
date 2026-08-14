@@ -54,20 +54,27 @@ export const PrintTicketModal: React.FC<PrintTicketModalProps> = ({
         {/* Printable Ticket Area */}
         <div className="p-8 sm:p-10 space-y-6 bg-white text-gray-900 print:p-0 font-serif text-xs sm:text-sm">
           {/* Bank Top Header */}
-          <div className="flex justify-between items-start border-b-2 border-gray-900 pb-4">
-            <div>
-              <div className="font-bold uppercase text-xs tracking-wider text-blue-900">
-                NGÂN HÀNG TMCP CÔNG THƯƠNG VIỆT NAM
+          <div className="flex justify-between items-center border-b-2 border-[#00529C] pb-4">
+            <div className="flex items-center space-x-3 sm:space-x-4">
+              <img
+                src="https://raw.githubusercontent.com/giadinhbanker/anh-super-app-bac-phu-tho/main/Logo%20VietinBank.png"
+                alt="VietinBank Logo"
+                className="h-12 sm:h-16 w-auto object-contain shrink-0"
+              />
+              <div>
+                <div className="font-bold uppercase text-[11px] sm:text-xs tracking-wider text-[#00529C]">
+                  NGÂN HÀNG TMCP CÔNG THƯƠNG VIỆT NAM
+                </div>
+                <div className="font-extrabold uppercase text-xs sm:text-sm text-slate-900">
+                  {bankBranchName}
+                </div>
+                <div className="text-[11px] font-medium text-slate-600">Phòng Tổng hợp / Hành chính Quản trị</div>
               </div>
-              <div className="font-extrabold uppercase text-sm text-gray-900">
-                {bankBranchName}
-              </div>
-              <div className="text-[10px] text-gray-600">Phòng Tổng hợp / Hành chính Quản trị</div>
             </div>
 
-            <div className="text-right">
-              <div className="font-mono font-bold text-base text-red-700">{request.id}</div>
-              <div className="text-[11px] text-gray-500">
+            <div className="text-right shrink-0">
+              <div className="font-mono font-bold text-base sm:text-lg text-[#ED1C24]">{request.id}</div>
+              <div className="text-[11px] text-slate-500 font-medium">
                 Ngày tạo: {isRepair ? repairReq?.reportDate : procurementReq?.requestDate}
               </div>
             </div>

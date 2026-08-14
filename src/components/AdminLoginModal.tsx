@@ -119,19 +119,23 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-gray-200">
         {/* Header */}
-        <div className="bg-[#002060] text-white p-5 flex items-center justify-between">
+        <div className="bg-[#00529C] text-white p-5 flex items-center justify-between border-b-4 border-[#ED1C24]">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-amber-500/20 rounded-lg border border-amber-400/30">
-              <KeyRound className="w-6 h-6 text-amber-300" />
+            <div className="bg-white p-1.5 rounded-xl shadow-sm flex items-center justify-center shrink-0">
+              <img
+                src="https://raw.githubusercontent.com/giadinhbanker/anh-super-app-bac-phu-tho/main/Logo%20VietinBank.png"
+                alt="VietinBank"
+                className="h-8 w-auto object-contain"
+              />
             </div>
             <div>
-              <h3 className="text-lg font-extrabold uppercase tracking-wide">Đăng Nhập Cán Bộ Quản Lý</h3>
-              <p className="text-xs text-blue-200">Hệ thống phân quyền V6.3 VietinBank</p>
+              <h3 className="text-base sm:text-lg font-black uppercase tracking-wide">Đăng Nhập Cán Bộ Quản Lý</h3>
+              <p className="text-xs text-blue-100 font-medium">Hệ thống phân quyền VietinBank</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-blue-200 hover:text-white hover:bg-blue-900 rounded-lg transition-colors"
+            className="p-1.5 text-blue-100 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
