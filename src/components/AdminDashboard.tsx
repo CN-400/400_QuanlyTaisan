@@ -29,6 +29,7 @@ import { AppSettings, ProcurementRequest, RepairRequest, RequestStatus } from '.
 import { DEPARTMENTS, STATUS_OPTIONS, URGENCY_LEVELS } from '../constants/data';
 import { OfficerUpdateModal } from './OfficerUpdateModal';
 import { PrintTicketModal } from './PrintTicketModal';
+import { PrintReportListModal } from './PrintReportListModal';
 import { UserManagementModal } from './UserManagementModal';
 import { ActionPermissionLoginModal } from './ActionPermissionLoginModal';
 import { fetchAllFromGoogleSheets, updateStatusInGoogleSheets, deleteRecordInGoogleSheets } from '../services/sheetsApi';
@@ -65,6 +66,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedDept, setSelectedDept] = useState<string>('Tất cả');
   const [selectedStatus, setSelectedStatus] = useState<string>('Tất cả');
   const [selectedUrgency, setSelectedUrgency] = useState<string>('Tất cả');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
 
   // Modals
   const [updatingItem, setUpdatingItem] = useState<{
@@ -76,6 +79,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     type: 'repair' | 'procurement';
     request: RepairRequest | ProcurementRequest;
   } | null>(null);
+
+  const [showPrintListModal, setShowPrintListModal] = useState<boolean>(false);
 
   // Sensitive Action Permission Lock Modal State (Kept as fallback)
   const [actionPermissionModal, setActionPermissionModal] = useState<{
@@ -200,19 +205,71 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  // Date extractor helper
+  const getItemDateString = (dateVal?: string, fallbackIso?: string): string => {
+    if (dateVal && dateVal.trim()) {
+      const v = dateVal.trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(v)) {
+        return v.substring(0, 10);
+      }
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(v)) {
+        const parts = v.split('/');
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
+    if (fallbackIso && fallbackIso.trim()) {
+      const v = fallbackIso.trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(v)) {
+        return v.substring(0, 10);
+      }
+    }
+    return '';
+  };
+
+  // Quick date presets
+  const setDatePreset = (preset: 'today' | '7days' | 'thisMonth' | 'thisYear' | 'all') => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    if (preset === 'today') {
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+    } else if (preset === '7days') {
+      const past = new Date();
+      past.setDate(now.getDate() - 7);
+      setStartDate(past.toISOString().split('T')[0]);
+      setEndDate(todayStr);
+    } else if (preset === 'thisMonth') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      setStartDate(firstDay.toISOString().split('T')[0]);
+      setEndDate(todayStr);
+    } else if (preset === 'thisYear') {
+      const firstDay = new Date(now.getFullYear(), 0, 1);
+      setStartDate(firstDay.toISOString().split('T')[0]);
+      setEndDate(todayStr);
+    } else if (preset === 'all') {
+      setStartDate('');
+      setEndDate('');
+    }
+  };
+
   // Filter repair requests
   const filteredRepairs = repairRequests.filter((r) => {
     const matchesSearch =
       r.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.assetName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.department.toLowerCase().includes(searchTerm.toLowerCase());
+      r.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (r.handler && r.handler.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesDept = selectedDept === 'Tất cả' || r.department === selectedDept;
     const matchesStatus = selectedStatus === 'Tất cả' || r.status === selectedStatus;
     const matchesUrgency = selectedUrgency === 'Tất cả' || r.urgency === selectedUrgency;
 
-    return matchesSearch && matchesDept && matchesStatus && matchesUrgency;
+    const itemDate = getItemDateString(r.reportDate, r.createdAt);
+    const matchesStartDate = !startDate || (itemDate ? itemDate >= startDate : true);
+    const matchesEndDate = !endDate || (itemDate ? itemDate <= endDate : true);
+
+    return matchesSearch && matchesDept && matchesStatus && matchesUrgency && matchesStartDate && matchesEndDate;
   });
 
   // Filter procurement requests
@@ -221,12 +278,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.equipmentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.department.toLowerCase().includes(searchTerm.toLowerCase());
+      p.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.handler && p.handler.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesDept = selectedDept === 'Tất cả' || p.department === selectedDept;
     const matchesStatus = selectedStatus === 'Tất cả' || p.status === selectedStatus;
 
-    return matchesSearch && matchesDept && matchesStatus;
+    const itemDate = getItemDateString(p.requestDate, p.createdAt);
+    const matchesStartDate = !startDate || (itemDate ? itemDate >= startDate : true);
+    const matchesEndDate = !endDate || (itemDate ? itemDate <= endDate : true);
+
+    return matchesSearch && matchesDept && matchesStatus && matchesStartDate && matchesEndDate;
   });
 
   // Save Status Update
@@ -413,6 +475,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Helper to extract and format data rows for export
   const getExportData = () => {
+    let dateSuffix = '';
+    if (startDate && endDate) {
+      dateSuffix = `_Tu_${startDate}_Den_${endDate}`;
+    } else if (startDate) {
+      dateSuffix = `_Tu_${startDate}`;
+    } else if (endDate) {
+      dateSuffix = `_Den_${endDate}`;
+    } else {
+      dateSuffix = `_${new Date().toISOString().split('T')[0]}`;
+    }
+
     if (activeSubTab === 'repair') {
       const headers = [
         'STT',
@@ -445,7 +518,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         r.note || '',
       ]);
       const sheetName = 'DeNghi_SuaChua';
-      const filename = `DanhSach_SuaChua_VietinBank_${new Date().toISOString().split('T')[0]}`;
+      const filename = `DanhSach_SuaChua_VietinBank${dateSuffix}`;
       return { headers, rows, sheetName, filename };
     } else {
       const headers = [
@@ -483,7 +556,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         p.note || '',
       ]);
       const sheetName = 'DeNghi_MuaSam';
-      const filename = `DanhSach_MuaSam_VietinBank_${new Date().toISOString().split('T')[0]}`;
+      const filename = `DanhSach_MuaSam_VietinBank${dateSuffix}`;
       return { headers, rows, sheetName, filename };
     }
   };
@@ -575,6 +648,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         />
       )}
 
+      {showPrintListModal && (
+        <PrintReportListModal
+          type={activeSubTab}
+          items={activeSubTab === 'repair' ? filteredRepairs : filteredProcurements}
+          startDate={startDate}
+          endDate={endDate}
+          selectedDept={selectedDept}
+          selectedStatus={selectedStatus}
+          selectedUrgency={selectedUrgency}
+          searchTerm={searchTerm}
+          bankBranchName={settings.bankBranchName}
+          currentUser={currentUser}
+          onClose={() => setShowPrintListModal(false)}
+        />
+      )}
+
       {showUserModal && (
         <UserManagementModal
           settings={settings}
@@ -642,9 +731,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
 
             <button
+              onClick={() => setShowPrintListModal(true)}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition-all flex items-center space-x-1.5 cursor-pointer transform hover:scale-105 active:scale-95"
+              title="In danh sách các đề nghị theo bộ lọc và khoảng thời gian (Từ ngày... Đến ngày...)"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>In Danh Sách (Báo Cáo)</span>
+            </button>
+
+            <button
               onClick={handleExportExcel}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center space-x-1.5 cursor-pointer transform hover:scale-105 active:scale-95"
-              title="Xuất file Excel (.xlsx) chuẩn với đầy đủ hàng, cột, tiêu đề và định dạng đẹp"
+              title="Xuất file Excel (.xlsx) chuẩn với đầy đủ hàng, cột, tiêu đề và định dạng đẹp theo kết quả tìm kiếm"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Xuất File Excel (.xlsx)</span>
@@ -653,7 +751,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               onClick={handleExportCSV}
               className="px-3.5 py-2 bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center space-x-1.5 cursor-pointer"
-              title="Xuất file định dạng CSV (chuẩn UTF-8 có BOM)"
+              title="Xuất file định dạng CSV (chuẩn UTF-8 có BOM) theo kết quả tìm kiếm"
             >
               <Download className="w-3.5 h-3.5 text-slate-300" />
               <span>Xuất CSV</span>
@@ -694,96 +792,223 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </button>
         </div>
 
-        {/* Filter Controls Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200 text-xs">
-          {/* Search Box */}
-          <div>
-            <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
-              Tìm kiếm từ khóa
-            </label>
-            <div className="relative">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Mã ID, tên cán bộ, phòng ban, thiết bị..."
-                className="w-full pl-9 pr-3 py-2 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-600 outline-none text-xs"
-              />
-            </div>
-          </div>
-
-          {/* Department Filter */}
-          <div>
-            <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
-              Lọc theo Phòng ban
-            </label>
-            <select
-              value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
-              className="w-full px-3 py-2 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-600 outline-none text-xs font-medium text-gray-800"
-            >
-              <option value="Tất cả">Tất cả phòng ban</option>
-              {DEPARTMENTS.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
-              Lọc theo Trạng thái
-            </label>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-3 py-2 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-600 outline-none text-xs font-medium text-gray-800"
-            >
-              <option value="Tất cả">Tất cả trạng thái</option>
-              {STATUS_OPTIONS.map((st) => (
-                <option key={st} value={st}>
-                  {st}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Urgency Filter (Only for repair) */}
-          {activeSubTab === 'repair' ? (
+        {/* Enhanced Filter Controls Bar */}
+        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 text-xs space-y-3">
+          {/* Row 1: Search & Dropdown Filters */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Search Box */}
             <div>
               <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
-                Lọc theo Mức độ khẩn
+                Tìm kiếm từ khóa
+              </label>
+              <div className="relative">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Mã ID, tên cán bộ, phòng ban, thiết bị, người xử lý..."
+                  className="w-full pl-9 pr-3 py-2 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-600 outline-none text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Department Filter */}
+            <div>
+              <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
+                Lọc theo Phòng ban
               </label>
               <select
-                value={selectedUrgency}
-                onChange={(e) => setSelectedUrgency(e.target.value)}
+                value={selectedDept}
+                onChange={(e) => setSelectedDept(e.target.value)}
                 className="w-full px-3 py-2 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-600 outline-none text-xs font-medium text-gray-800"
               >
-                <option value="Tất cả">Tất cả mức độ</option>
-                {URGENCY_LEVELS.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
+                <option value="Tất cả">Tất cả phòng ban</option>
+                {DEPARTMENTS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
                   </option>
                 ))}
               </select>
             </div>
-          ) : (
-            <div className="flex items-end">
+
+            {/* Status Filter */}
+            <div>
+              <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
+                Lọc theo Trạng thái
+              </label>
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="w-full px-3 py-2 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-600 outline-none text-xs font-medium text-gray-800"
+              >
+                <option value="Tất cả">Tất cả trạng thái</option>
+                {STATUS_OPTIONS.map((st) => (
+                  <option key={st} value={st}>
+                    {st}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Urgency Filter (Only for repair) */}
+            {activeSubTab === 'repair' ? (
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
+                  Lọc theo Mức độ khẩn
+                </label>
+                <select
+                  value={selectedUrgency}
+                  onChange={(e) => setSelectedUrgency(e.target.value)}
+                  className="w-full px-3 py-2 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-600 outline-none text-xs font-medium text-gray-800"
+                >
+                  <option value="Tất cả">Tất cả mức độ</option>
+                  {URGENCY_LEVELS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
+                  Phân loại mục
+                </label>
+                <div className="py-2 px-3 bg-white rounded-lg border border-gray-300 text-gray-500 italic text-[11px]">
+                  Phiếu Đề Nghị Mua Sắm
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Row 2: Date Range Filters & Quick Presets */}
+          <div className="pt-2 border-t border-gray-200/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <div className="flex items-center space-x-1.5">
+                <Calendar className="w-4 h-4 text-blue-700 shrink-0" />
+                <span className="font-bold text-[11px] text-gray-700 uppercase whitespace-nowrap">
+                  Thời gian:
+                </span>
+              </div>
+
+              {/* Start Date */}
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500 text-[11px]">Từ ngày:</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-2.5 py-1.5 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-600 outline-none text-xs font-medium text-gray-800"
+                />
+              </div>
+
+              {/* End Date */}
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500 text-[11px]">Đến ngày:</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="px-2.5 py-1.5 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-600 outline-none text-xs font-medium text-gray-800"
+                />
+              </div>
+
+              {/* Quick Presets */}
+              <div className="flex items-center space-x-1 flex-wrap gap-y-1 ml-1">
+                <button
+                  type="button"
+                  onClick={() => setDatePreset('today')}
+                  className="px-2 py-1 bg-white hover:bg-gray-100 text-gray-700 text-[11px] font-semibold rounded border border-gray-300 transition-colors"
+                >
+                  Hôm nay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDatePreset('7days')}
+                  className="px-2 py-1 bg-white hover:bg-gray-100 text-gray-700 text-[11px] font-semibold rounded border border-gray-300 transition-colors"
+                >
+                  7 ngày qua
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDatePreset('thisMonth')}
+                  className="px-2 py-1 bg-white hover:bg-gray-100 text-gray-700 text-[11px] font-semibold rounded border border-gray-300 transition-colors"
+                >
+                  Tháng này
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDatePreset('thisYear')}
+                  className="px-2 py-1 bg-white hover:bg-gray-100 text-gray-700 text-[11px] font-semibold rounded border border-gray-300 transition-colors"
+                >
+                  Năm nay
+                </button>
+              </div>
+            </div>
+
+            {/* Clear Filters Button */}
+            {(searchTerm ||
+              selectedDept !== 'Tất cả' ||
+              selectedStatus !== 'Tất cả' ||
+              selectedUrgency !== 'Tất cả' ||
+              startDate ||
+              endDate) && (
               <button
                 onClick={() => {
                   setSearchTerm('');
                   setSelectedDept('Tất cả');
                   setSelectedStatus('Tất cả');
+                  setSelectedUrgency('Tất cả');
+                  setStartDate('');
+                  setEndDate('');
                 }}
-                className="w-full py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg text-xs transition-colors"
+                className="px-3 py-1.5 bg-gray-200 hover:bg-red-100 hover:text-red-700 text-gray-700 font-bold rounded-lg text-xs transition-colors flex items-center space-x-1 shrink-0 self-end md:self-auto cursor-pointer"
               >
-                Xóa bộ lọc
+                <span>Xóa toàn bộ bộ lọc</span>
               </button>
-            </div>
-          )}
+            )}
+          </div>
+        </div>
+
+        {/* Filter Results & Action Summary Bar */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-1 pt-1 text-xs">
+          <div className="flex items-center space-x-2 text-gray-700">
+            <span className="font-semibold">
+              Kết quả tìm kiếm:
+            </span>
+            <span className="bg-blue-100 text-blue-900 font-extrabold px-2.5 py-0.5 rounded-full">
+              {activeSubTab === 'repair' ? filteredRepairs.length : filteredProcurements.length} /{' '}
+              {activeSubTab === 'repair' ? repairRequests.length : procurementRequests.length} đề nghị
+            </span>
+            {(startDate || endDate) && (
+              <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded text-[11px] font-medium hidden md:inline-block">
+                Thời gian:{' '}
+                {startDate && endDate
+                  ? `${startDate} ➔ ${endDate}`
+                  : startDate
+                  ? `Từ ${startDate}`
+                  : `Đến ${endDate}`}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowPrintListModal(true)}
+              className="text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-300 font-bold flex items-center space-x-1 cursor-pointer transition-all"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>In danh sách này ({activeSubTab === 'repair' ? filteredRepairs.length : filteredProcurements.length})</span>
+            </button>
+            <button
+              onClick={handleExportExcel}
+              className="text-emerald-800 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-300 font-bold flex items-center space-x-1 cursor-pointer transition-all"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Xuất Excel ({activeSubTab === 'repair' ? filteredRepairs.length : filteredProcurements.length})</span>
+            </button>
+          </div>
         </div>
       </div>
 
