@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { X, Printer, Download, FileText, Loader2, LogOut, Calendar, Layers } from 'lucide-react';
 import { ProcurementRequest, RepairRequest, UserSession } from '../types';
+import { formatVnDateTime, formatVnDateOnly } from '../utils/dateFormatter';
 
 interface PrintReportListModalProps {
   type: 'repair' | 'procurement';
@@ -354,8 +355,8 @@ export const PrintReportListModal: React.FC<PrintReportListModalProps> = ({
                           <td className="border border-gray-400 p-2 font-mono font-bold text-blue-900 text-center">
                             {item.id}
                           </td>
-                          <td className="border border-gray-400 p-2 text-center">
-                            {formatDateVN(isRepair ? rep?.reportDate : proc?.requestDate)}
+                          <td className="border border-gray-400 p-2 text-center whitespace-nowrap">
+                            {formatVnDateTime(isRepair ? rep?.reportDate : proc?.requestDate, item.createdAt)}
                           </td>
                           <td className="border border-gray-400 p-2 font-medium">
                             {item.fullName}
@@ -385,6 +386,11 @@ export const PrintReportListModal: React.FC<PrintReportListModalProps> = ({
                                     Chủng loại: {proc.category}
                                   </div>
                                 )}
+                                {proc?.proposedDate && (
+                                  <div className="text-blue-800 text-[10px]">
+                                    Thời gian mua: {formatVnDateOnly(proc.proposedDate)}
+                                  </div>
+                                )}
                                 <div className="text-gray-600 italic text-[10px]">
                                   Lý do: {proc?.reason}
                                 </div>
@@ -410,8 +416,8 @@ export const PrintReportListModal: React.FC<PrintReportListModalProps> = ({
                           <td className="border border-gray-400 p-2 text-center">
                             {item.handler || '-'}
                           </td>
-                          <td className="border border-gray-400 p-2 text-center">
-                            {formatDateVN(item.completionDate) || '-'}
+                          <td className="border border-gray-400 p-2 text-center whitespace-nowrap">
+                            {formatVnDateTime(item.completionDate)}
                           </td>
                         </tr>
                       );

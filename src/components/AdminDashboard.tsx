@@ -34,6 +34,7 @@ import { UserManagementModal } from './UserManagementModal';
 import { ActionPermissionLoginModal } from './ActionPermissionLoginModal';
 import { fetchAllFromGoogleSheets, updateStatusInGoogleSheets, deleteRecordInGoogleSheets } from '../services/sheetsApi';
 import { saveProcurementRequests, saveRepairRequests } from '../services/storage';
+import { formatVnDateTime, formatVnDateOnly, cleanGoogleSheetsDate } from '../utils/dateFormatter';
 
 interface AdminDashboardProps {
   repairRequests: RepairRequest[];
@@ -209,18 +210,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const getItemDateString = (dateVal?: string, fallbackIso?: string): string => {
     if (dateVal && dateVal.trim()) {
       const v = dateVal.trim();
-      if (/^\d{4}-\d{2}-\d{2}/.test(v)) {
-        return v.substring(0, 10);
+      // If matches YYYY-MM-DD
+      const isoYmd = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (isoYmd) {
+        return `${isoYmd[1]}-${isoYmd[2]}-${isoYmd[3]}`;
       }
-      if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(v)) {
-        const parts = v.split('/');
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      // If matches DD-MM-YYYY or DD/MM/YYYY
+      const dmy = v.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+      if (dmy) {
+        return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+      }
+      // Try date parsing
+      const d = new Date(v);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
       }
     }
     if (fallbackIso && fallbackIso.trim()) {
       const v = fallbackIso.trim();
-      if (/^\d{4}-\d{2}-\d{2}/.test(v)) {
-        return v.substring(0, 10);
+      const isoYmd = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (isoYmd) {
+        return `${isoYmd[1]}-${isoYmd[2]}-${isoYmd[3]}`;
       }
     }
     return '';
@@ -369,14 +382,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     department: String(item['Phòng ban'] || item.department || '').trim(),
     assetName: String(item['Tên tài sản'] || item.assetName || '').trim(),
     condition: String(item['Tình trạng'] || item.condition || '').trim(),
-    reportDate: String(item['Ngày báo hỏng'] || item.reportDate || '').trim(),
+    reportDate: cleanGoogleSheetsDate(item['Ngày báo hỏng'] || item.reportDate || ''),
     proposal: String(item['Đề xuất'] || item.proposal || '').trim(),
     urgency: (item['Mức độ khẩn cấp'] || item.urgency || 'Trung Bình') as any,
     status: (item['Trạng thái'] || item.status || 'Đề xuất') as RequestStatus,
     handler: String(item['Cán bộ xử lý'] || item.handler || '').trim(),
-    completionDate: String(item['Ngày hoàn thành'] || item.completionDate || '').trim(),
+    completionDate: cleanGoogleSheetsDate(item['Ngày hoàn thành'] || item.completionDate || ''),
     note: String(item['Ghi chú'] || item.note || '').trim(),
-    createdAt: String(item['Thời gian khởi tạo'] || item.createdAt || new Date().toISOString()).trim(),
+    createdAt: cleanGoogleSheetsDate(item['Thời gian khởi tạo'] || item.createdAt || new Date().toISOString()),
   });
 
   const parseProcurementItem = (item: any): ProcurementRequest => ({
@@ -388,13 +401,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     category: String(item['Chủng loại'] || item.category || '').trim(),
     reason: String(item['Lý do đề xuất'] || item.reason || '').trim(),
     description: String(item['Mô tả yêu cầu'] || item.description || '').trim(),
-    requestDate: String(item['Ngày đề nghị'] || item.requestDate || '').trim(),
-    proposedDate: String(item['Đề xuất thời gian mua'] || item.proposedDate || '').trim(),
+    requestDate: cleanGoogleSheetsDate(item['Ngày đề nghị'] || item.requestDate || ''),
+    proposedDate: cleanGoogleSheetsDate(item['Đề xuất thời gian mua'] || item.proposedDate || ''),
     handler: String(item['Cán bộ xử lý'] || item.handler || '').trim(),
     status: (item['Trạng thái'] || item.status || 'Đề xuất') as RequestStatus,
-    completionDate: String(item['Ngày hoàn thành'] || item.completionDate || '').trim(),
+    completionDate: cleanGoogleSheetsDate(item['Ngày hoàn thành'] || item.completionDate || ''),
     note: String(item['Ghi chú'] || item.note || '').trim(),
-    createdAt: String(item['Thời gian khởi tạo'] || item.createdAt || new Date().toISOString()).trim(),
+    createdAt: cleanGoogleSheetsDate(item['Thời gian khởi tạo'] || item.createdAt || new Date().toISOString()),
   });
 
   // Fetch data directly from Google Sheets (Admin only)
@@ -509,12 +522,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         r.department || '',
         r.assetName || '',
         r.condition || '',
-        r.reportDate || '',
+        formatVnDateTime(r.reportDate, r.createdAt),
         r.proposal || '',
         r.urgency || '',
         r.status || '',
         r.handler || '',
-        r.completionDate || '',
+        formatVnDateTime(r.completionDate),
         r.note || '',
       ]);
       const sheetName = 'DeNghi_SuaChua';
@@ -548,11 +561,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         p.category || '',
         p.reason || '',
         p.description || '',
-        p.requestDate || '',
-        p.proposedDate || '',
+        formatVnDateTime(p.requestDate, p.createdAt),
+        formatVnDateOnly(p.proposedDate),
         p.handler || '',
         p.status || '',
-        p.completionDate || '',
+        formatVnDateTime(p.completionDate),
         p.note || '',
       ]);
       const sheetName = 'DeNghi_MuaSam';
@@ -1068,7 +1081,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                         </td>
                         <td className="py-3 px-4 whitespace-nowrap">
-                          <div className="text-gray-700">{item.reportDate}</div>
+                          <div className="text-gray-900 font-medium">
+                            {formatVnDateTime(item.reportDate, item.createdAt)}
+                          </div>
                           <span className={`inline-block text-[10px] px-2 py-0.5 rounded mt-0.5 ${urgencyBadge}`}>
                             {item.urgency}
                           </span>
@@ -1083,7 +1098,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             {item.handler || <span className="text-gray-400 italic">Chưa gán</span>}
                           </div>
                           {item.completionDate && (
-                            <div className="text-[10px] text-emerald-700">Xong: {item.completionDate}</div>
+                            <div className="text-[10px] text-emerald-700">
+                              Xong: {formatVnDateTime(item.completionDate)}
+                            </div>
                           )}
                         </td>
                         <td className="py-3 px-4 text-center whitespace-nowrap">
@@ -1162,12 +1179,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <td className="py-3 px-4">
                           <div className="font-bold text-gray-900">{item.fullName}</div>
                           <div className="text-[11px] text-gray-500">{item.department}</div>
+                          <div className="text-[10px] text-blue-800 font-medium mt-0.5">
+                            Ngày ĐN: {formatVnDateTime(item.requestDate, item.createdAt)}
+                          </div>
                         </td>
                         <td className="py-3 px-4">
                           <div className="font-bold text-emerald-900">{item.equipmentName}</div>
                           <div className="text-[11px] font-semibold text-emerald-700">
                             Số lượng: {item.quantity} bộ/cái
                           </div>
+                          {item.proposedDate && (
+                            <div className="text-[10px] text-gray-500">
+                              Dự kiến: {formatVnDateOnly(item.proposedDate)}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-4 max-w-xs">
                           <div className="font-medium text-gray-800">{item.category}</div>
@@ -1185,7 +1210,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             {item.handler || <span className="text-gray-400 italic">Chưa gán</span>}
                           </div>
                           {item.completionDate && (
-                            <div className="text-[10px] text-emerald-700">Xong: {item.completionDate}</div>
+                            <div className="text-[10px] text-emerald-700">
+                              Xong: {formatVnDateTime(item.completionDate)}
+                            </div>
                           )}
                         </td>
                         <td className="py-3 px-4 text-center whitespace-nowrap">

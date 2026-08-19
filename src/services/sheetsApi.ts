@@ -1,5 +1,6 @@
 import { AppSettings, ProcurementRequest, RepairRequest, RequestStatus, UserAccount, UserRole } from '../types';
 import { DEFAULT_APPS_SCRIPT_URL, isValidAppsScriptUrl } from '../constants/config';
+import { cleanGoogleSheetsDate } from '../utils/dateFormatter';
 
 export interface SyncResult {
   success: boolean;
@@ -462,14 +463,14 @@ export function parseRepairRows(rows: any[]): RepairRequest[] {
     department: r['Phòng ban'] || r.department || '',
     assetName: r['Tên tài sản'] || r.assetName || '',
     condition: r['Tình trạng'] || r.condition || '',
-    reportDate: r['Ngày báo hỏng'] || r.reportDate || '',
+    reportDate: cleanGoogleSheetsDate(r['Ngày báo hỏng'] || r.reportDate || ''),
     proposal: r['Đề xuất'] || r.proposal || '',
     urgency: r['Mức độ khẩn cấp'] || r.urgency || 'Trung Bình',
     status: r['Trạng thái'] || r.status || 'Đề xuất',
     handler: r['Cán bộ xử lý'] || r.handler || '',
-    completionDate: r['Ngày hoàn thành'] || r.completionDate || '',
+    completionDate: cleanGoogleSheetsDate(r['Ngày hoàn thành'] || r.completionDate || ''),
     note: r['Ghi chú'] || r.note || '',
-    createdAt: r['Thời gian khởi tạo'] || r.createdAt || new Date().toISOString(),
+    createdAt: cleanGoogleSheetsDate(r['Thời gian khởi tạo'] || r.createdAt || new Date().toISOString()),
   }));
 }
 
@@ -487,13 +488,13 @@ export function parseProcurementRows(rows: any[]): ProcurementRequest[] {
     category: r['Chủng loại'] || r.category || '',
     reason: r['Lý do đề xuất'] || r.reason || '',
     description: r['Mô tả yêu cầu'] || r.description || '',
-    requestDate: r['Ngày đề nghị'] || r.requestDate || '',
-    proposedDate: r['Đề xuất thời gian mua'] || r.proposedDate || '',
+    requestDate: cleanGoogleSheetsDate(r['Ngày đề nghị'] || r.requestDate || ''),
+    proposedDate: cleanGoogleSheetsDate(r['Đề xuất thời gian mua'] || r.proposedDate || ''),
     handler: r['Cán bộ xử lý'] || r.handler || '',
     status: r['Trạng thái'] || r.status || 'Đề xuất',
-    completionDate: r['Ngày hoàn thành'] || r.completionDate || '',
+    completionDate: cleanGoogleSheetsDate(r['Ngày hoàn thành'] || r.completionDate || ''),
     note: r['Ghi chú'] || r.note || '',
-    createdAt: r['Thời gian khởi tạo'] || r.createdAt || new Date().toISOString(),
+    createdAt: cleanGoogleSheetsDate(r['Thời gian khởi tạo'] || r.createdAt || new Date().toISOString()),
   }));
 }
 

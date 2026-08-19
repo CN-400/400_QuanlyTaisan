@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { DEPARTMENTS, URGENCY_LEVELS } from '../constants/data';
 import { AppSettings, RepairRequest, UrgencyLevel } from '../types';
+import { formatVnDateTime } from '../utils/dateFormatter';
 import { generateNextRepairId, saveRepairRequests } from '../services/storage';
 import { syncRepairToGoogleSheets } from '../services/sheetsApi';
 import { PrintTicketModal } from './PrintTicketModal';
@@ -220,7 +221,9 @@ export const RepairForm: React.FC<RepairFormProps> = ({
               </div>
               <div className="flex justify-between border-b pb-2">
                 <span className="text-gray-500">Ngày báo hỏng:</span>
-                <span className="font-semibold text-gray-900">{successRequest.reportDate}</span>
+                <span className="font-semibold text-gray-900">
+                  {formatVnDateTime(successRequest.reportDate, successRequest.createdAt)}
+                </span>
               </div>
               <div className="flex justify-between border-b pb-2">
                 <span className="text-gray-500">Mức độ khẩn cấp:</span>

@@ -990,9 +990,39 @@ function writeLog(logSheet, actorUsername, action, targetUsername, result, detai
   } catch (e) {}
 }
 
+/**
+ * Định dạng ngày giờ chuẩn Việt Nam (dd-MM-yyyy - HH:mm hoặc dd-MM-yyyy)
+ */
+function formatVnDateAppsScript(val) {
+  if (!val) return "";
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return "";
+    var d = val.getDate();
+    var m = val.getMonth() + 1;
+    var y = val.getFullYear();
+    var hh = val.getHours();
+    var mm = val.getMinutes();
+    var dStr = (d < 10 ? "0" : "") + d + "-" + (m < 10 ? "0" : "") + m + "-" + y;
+    if (hh === 0 && mm === 0) {
+      return dStr;
+    }
+    var tStr = (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
+    return dStr + " - " + tStr;
+  }
+  var str = String(val).trim();
+  if (str.indexOf("T") > 0) {
+    var dt = new Date(str);
+    if (!isNaN(dt.getTime())) {
+      return formatVnDateAppsScript(dt);
+    }
+  }
+  return str;
+}
+
 function sendEmailNotificationForRepair(recipientEmail, data, repairId, timestamp) {
   if (!recipientEmail || recipientEmail.trim() === "") return;
   try {
+    var reportDateFormatted = formatVnDateAppsScript(data.reportDate) || data.reportDate || "";
     var subject = "[VIETINBANK NINH BÌNH] Đề nghị SỬA CHỮA mới - " + repairId + " (" + (data.fullName || "") + ")";
     var htmlBody = '<div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; border: 1px solid #002060; border-radius: 8px; overflow: hidden;">' +
       '<div style="background-color: #002060; padding: 16px; text-align: center; color: #ffffff;">' +
@@ -1010,7 +1040,7 @@ function sendEmailNotificationForRepair(recipientEmail, data, repairId, timestam
       '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Tình trạng hỏng hóc:</td><td style="padding: 8px; border: 1px solid #ddd; color: #dc2626;">' + (data.condition || '') + '</td></tr>' +
       '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Đề xuất xử lý:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.proposal || '') + '</td></tr>' +
       '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Mức độ khẩn cấp:</td><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #b91c1c;">' + (data.urgency || 'Trung Bình') + '</td></tr>' +
-      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Ngày báo hỏng:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.reportDate || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Ngày báo hỏng:</td><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">' + reportDateFormatted + '</td></tr>' +
       '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Thời gian gửi:</td><td style="padding: 8px; border: 1px solid #ddd;">' + timestamp + '</td></tr>' +
       '</table>' +
       '<p style="margin-top: 20px;">Trân trọng kính báo Cán bộ Quản lý xem xét, duyệt và phân công xử lý kịp thời.</p>' +
@@ -1029,6 +1059,8 @@ function sendEmailNotificationForRepair(recipientEmail, data, repairId, timestam
 function sendEmailNotificationForProcurement(recipientEmail, data, procurementId, timestamp) {
   if (!recipientEmail || recipientEmail.trim() === "") return;
   try {
+    var requestDateFormatted = formatVnDateAppsScript(data.requestDate) || data.requestDate || "";
+    var proposedDateFormatted = formatVnDateAppsScript(data.proposedDate) || data.proposedDate || "";
     var subject = "[VIETINBANK NINH BÌNH] Đề nghị MUA SẮM mới - " + procurementId + " (" + (data.fullName || "") + ")";
     var htmlBody = '<div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; border: 1px solid #002060; border-radius: 8px; overflow: hidden;">' +
       '<div style="background-color: #002060; padding: 16px; text-align: center; color: #ffffff;">' +
@@ -1047,7 +1079,8 @@ function sendEmailNotificationForProcurement(recipientEmail, data, procurementId
       '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Chủng loại / Quy cách:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.category || '') + '</td></tr>' +
       '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Lý do đề xuất:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.reason || '') + '</td></tr>' +
       '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Mô tả yêu cầu kỹ thuật:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.description || '') + '</td></tr>' +
-      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Thời gian đề xuất mua:</td><td style="padding: 8px; border: 1px solid #ddd;">' + (data.proposedDate || '') + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Ngày đề nghị:</td><td style="padding: 8px; border: 1px solid #ddd;">' + requestDateFormatted + '</td></tr>' +
+      '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Thời gian đề xuất mua:</td><td style="padding: 8px; border: 1px solid #ddd;">' + proposedDateFormatted + '</td></tr>' +
       '<tr><td style="padding: 8px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold;">Thời gian gửi:</td><td style="padding: 8px; border: 1px solid #ddd;">' + timestamp + '</td></tr>' +
       '</table>' +
       '<p style="margin-top: 20px;">Trân trọng kính báo Cán bộ Quản lý xem xét, duyệt và thẩm định kế hoạch mua sắm.</p>' +
@@ -1179,7 +1212,11 @@ function sheetToObjects(sheet) {
   for (var i = 1; i < data.length; i++) {
     var obj = {};
     for (var j = 0; j < headers.length; j++) {
-      obj[headers[j]] = data[i][j];
+      var val = data[i][j];
+      if (val instanceof Date) {
+        val = formatVnDateAppsScript(val);
+      }
+      obj[headers[j]] = val;
     }
     result.push(obj);
   }

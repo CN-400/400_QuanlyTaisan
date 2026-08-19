@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { DEPARTMENTS, EQUIPMENT_LIST } from '../constants/data';
 import { AppSettings, ProcurementRequest } from '../types';
+import { formatVnDateTime, formatVnDateOnly } from '../utils/dateFormatter';
 import { generateNextProcurementId, saveProcurementRequests } from '../services/storage';
 import { syncProcurementToGoogleSheets } from '../services/sheetsApi';
 import { PrintTicketModal } from './PrintTicketModal';
@@ -233,11 +234,15 @@ export const ProcurementForm: React.FC<ProcurementFormProps> = ({
               </div>
               <div className="flex justify-between border-b pb-2">
                 <span className="text-gray-500">Ngày đề nghị:</span>
-                <span className="font-semibold text-gray-900">{successRequest.requestDate}</span>
+                <span className="font-semibold text-gray-900">
+                  {formatVnDateTime(successRequest.requestDate, successRequest.createdAt)}
+                </span>
               </div>
               <div className="flex justify-between border-b pb-2">
                 <span className="text-gray-500">Thời gian mua đề xuất:</span>
-                <span className="font-semibold text-gray-900">{successRequest.proposedDate}</span>
+                <span className="font-semibold text-gray-900">
+                  {formatVnDateOnly(successRequest.proposedDate)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Trạng thái:</span>

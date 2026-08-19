@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { X, Printer, Download, FileText, Loader2, LogOut } from 'lucide-react';
 import { ProcurementRequest, RepairRequest } from '../types';
+import { formatVnDateTime, formatVnDateOnly } from '../utils/dateFormatter';
 
 interface PrintTicketModalProps {
   type: 'repair' | 'procurement';
@@ -131,65 +132,9 @@ export const PrintTicketModal: React.FC<PrintTicketModalProps> = ({
     }
   };
 
-  // Helper to format date and time nicely in dd/mm/yyyy for official documents
-  const formatDateOnly = (dateStr?: string) => {
-    if (!dateStr) return '';
-    // Try JavaScript Date parsing first
-    try {
-      const d = new Date(dateStr);
-      if (!isNaN(d.getTime())) {
-        const day = String(d.getDate()).padStart(2, '0');
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const year = d.getFullYear();
-        return `${day}/${month}/${year}`;
-      }
-    } catch (e) {
-      // fallback
-    }
-
-    // Fallback manual formatting for YYYY-MM-DD
-    const cleanStr = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
-    if (cleanStr.includes('-')) {
-      const parts = cleanStr.split('-');
-      if (parts.length === 3 && parts[0].length === 4) {
-        return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`;
-      }
-    }
-    return dateStr;
-  };
-
-  const formatDateTime = (primaryInput?: string, secondaryInput?: string) => {
-    const targetStr = primaryInput || secondaryInput;
-    if (targetStr) {
-      try {
-        const d = new Date(targetStr);
-        if (!isNaN(d.getTime())) {
-          const hours = String(d.getHours()).padStart(2, '0');
-          const minutes = String(d.getMinutes()).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const year = d.getFullYear();
-          return `${hours}:${minutes} - ${day}/${month}/${year}`;
-        }
-      } catch (e) {
-        // fallback
-      }
-    }
-    if (secondaryInput) {
-      return formatDateOnly(secondaryInput);
-    }
-    const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const year = now.getFullYear();
-    return `${hours}:${minutes} - ${day}/${month}/${year}`;
-  };
-
-  const requestDateTimeStr = formatDateTime(
-    request.createdAt,
-    isRepair ? repairReq?.reportDate : procurementReq?.requestDate
+  const requestDateTimeStr = formatVnDateTime(
+    request.createdAt || (isRepair ? repairReq?.reportDate : procurementReq?.requestDate),
+    request.createdAt
   );
 
   return (
@@ -390,7 +335,7 @@ export const PrintTicketModal: React.FC<PrintTicketModalProps> = ({
 
                 <div className="text-xs space-y-1">
                   <span className="text-gray-600">Thời gian đề xuất hoàn thành: </span>
-                  <strong className="text-gray-900 font-bold">{formatDateOnly(procurementReq?.proposedDate)}</strong>
+                  <strong className="text-gray-900 font-bold">{formatVnDateOnly(procurementReq?.proposedDate)}</strong>
                 </div>
               </>
             )}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, UserPlus, Shield, X, RefreshCw, Key, Trash2, CheckCircle2, AlertCircle, FileText, Loader2, Copy, Check } from 'lucide-react';
 import { AppSettings, UserAccount, UserRole, SystemLogEntry } from '../types';
 import { fetchUsersFromGoogleSheets, createUserInGoogleSheets, updateUserInGoogleSheets, deleteUserInGoogleSheets, fetchLogsFromGoogleSheets, resetPasswordInGoogleSheets } from '../services/sheetsApi';
+import { formatVnDateTime } from '../utils/dateFormatter';
 
 interface UserManagementModalProps {
   settings: AppSettings;
@@ -600,7 +601,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     ) : (
                       logs.map((log, index) => (
                         <tr key={index} className="hover:bg-slate-50">
-                          <td className="py-2.5 px-4 text-gray-600 whitespace-nowrap">{log.timestamp}</td>
+                          <td className="py-2.5 px-4 text-gray-600 whitespace-nowrap">
+                            {formatVnDateTime(log.timestamp)}
+                          </td>
                           <td className="py-2.5 px-4 font-bold text-blue-900 whitespace-nowrap">{log.username}</td>
                           <td className="py-2.5 px-4 font-semibold text-purple-800 whitespace-nowrap">{log.action}</td>
                           <td className="py-2.5 px-4 text-gray-800">{log.details}</td>
