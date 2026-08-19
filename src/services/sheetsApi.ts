@@ -1,6 +1,6 @@
 import { AppSettings, ProcurementRequest, RepairRequest, RequestStatus, UserAccount, UserRole } from '../types';
 import { DEFAULT_APPS_SCRIPT_URL, isValidAppsScriptUrl } from '../constants/config';
-import { cleanGoogleSheetsDate } from '../utils/dateFormatter';
+import { cleanGoogleSheetsDate, compareRequestsNewestFirst } from '../utils/dateFormatter';
 
 export interface SyncResult {
   success: boolean;
@@ -453,11 +453,11 @@ export async function fetchSettingsFromGoogleSheets(webAppUrl: string): Promise<
 }
 
 /**
- * Parse raw rows from sheet SuaChua to RepairRequest objects
+ * Parse raw rows from sheet SuaChua to RepairRequest objects (sorted newest first)
  */
 export function parseRepairRows(rows: any[]): RepairRequest[] {
   if (!Array.isArray(rows)) return [];
-  return rows.map((r) => ({
+  const parsed = rows.map((r) => ({
     id: r['Mã đề nghị'] || r.id || '',
     fullName: r['Họ và tên'] || r.fullName || '',
     department: r['Phòng ban'] || r.department || '',
@@ -472,14 +472,15 @@ export function parseRepairRows(rows: any[]): RepairRequest[] {
     note: r['Ghi chú'] || r.note || '',
     createdAt: cleanGoogleSheetsDate(r['Thời gian khởi tạo'] || r.createdAt || new Date().toISOString()),
   }));
+  return parsed.sort(compareRequestsNewestFirst);
 }
 
 /**
- * Parse raw rows from sheet MuaSam to ProcurementRequest objects
+ * Parse raw rows from sheet MuaSam to ProcurementRequest objects (sorted newest first)
  */
 export function parseProcurementRows(rows: any[]): ProcurementRequest[] {
   if (!Array.isArray(rows)) return [];
-  return rows.map((r) => ({
+  const parsed = rows.map((r) => ({
     id: r['Mã đề nghị'] || r.id || '',
     fullName: r['Họ và tên'] || r.fullName || '',
     department: r['Phòng ban'] || r.department || '',
@@ -496,6 +497,7 @@ export function parseProcurementRows(rows: any[]): ProcurementRequest[] {
     note: r['Ghi chú'] || r.note || '',
     createdAt: cleanGoogleSheetsDate(r['Thời gian khởi tạo'] || r.createdAt || new Date().toISOString()),
   }));
+  return parsed.sort(compareRequestsNewestFirst);
 }
 
 /**

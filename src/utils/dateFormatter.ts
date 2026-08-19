@@ -72,3 +72,76 @@ export function cleanGoogleSheetsDate(val: any): string {
 
   return formatVnDateOnly(str);
 }
+
+/**
+ * Extract sortable numeric value or timestamp to ensure newest records are on top
+ */
+export function getSortScore(item: { id?: string; reportDate?: string; requestDate?: string; createdAt?: string }): {
+  dateStr: string;
+  seqNumber: number;
+  rawTime: number;
+} {
+  // 1. Date string in YYYY-MM-DD format
+  let dateStr = '';
+  const dateVal = item.reportDate || item.requestDate || '';
+  if (dateVal) {
+    const dmy = dateVal.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (dmy) {
+      dateStr = `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+    } else {
+      const ymd = dateVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (ymd) {
+        dateStr = `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
+      }
+    }
+  }
+
+  // 2. Numerical Sequence in ID (e.g., SC-2026-0025 -> 20260025)
+  let seqNumber = 0;
+  if (item.id) {
+    const digits = item.id.replace(/\D/g, '');
+    if (digits) {
+      seqNumber = parseInt(digits, 10) || 0;
+    }
+  }
+
+  // 3. Raw timestamp if available
+  let rawTime = 0;
+  if (item.createdAt) {
+    const t = new Date(item.createdAt).getTime();
+    if (!isNaN(t) && t > 0) {
+      rawTime = t;
+    }
+  }
+
+  return { dateStr, seqNumber, rawTime };
+}
+
+/**
+ * Comparator to sort requests so that the newest ones appear first
+ */
+export function compareRequestsNewestFirst<T extends { id?: string; reportDate?: string; requestDate?: string; createdAt?: string }>(
+  a: T,
+  b: T
+): number {
+  const scoreA = getSortScore(a);
+  const scoreB = getSortScore(b);
+
+  // 1. Compare by numerical sequence in ID descending (e.g. SC-2026-0010 before SC-2026-0001)
+  if (scoreA.seqNumber !== scoreB.seqNumber && scoreA.seqNumber > 0 && scoreB.seqNumber > 0) {
+    return scoreB.seqNumber - scoreA.seqNumber;
+  }
+
+  // 2. Compare by date (YYYY-MM-DD descending)
+  if (scoreA.dateStr && scoreB.dateStr && scoreA.dateStr !== scoreB.dateStr) {
+    return scoreB.dateStr.localeCompare(scoreA.dateStr);
+  }
+
+  // 3. Compare by raw timestamp
+  if (scoreA.rawTime !== scoreB.rawTime && scoreA.rawTime > 0 && scoreB.rawTime > 0) {
+    return scoreB.rawTime - scoreA.rawTime;
+  }
+
+  // 4. Fallback string ID comparison
+  return (b.id || '').localeCompare(a.id || '', undefined, { numeric: true });
+}

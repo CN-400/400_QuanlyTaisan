@@ -26,6 +26,7 @@ interface HeaderProps {
   settings: AppSettings;
   onOpenSettings: () => void;
   onOpenGuide?: () => void;
+  onOpenLogin?: () => void;
   repairCount: number;
   procurementCount: number;
   isAdminLoggedIn?: boolean;
@@ -39,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
   settings,
   onOpenSettings,
   onOpenGuide,
+  onOpenLogin,
   repairCount,
   procurementCount,
   isAdminLoggedIn = false,
@@ -124,35 +126,66 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             {/* Google Sheets Connection Pill */}
-            <button
-              onClick={onOpenSettings}
-              className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-                settings.webAppUrl
-                  ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900'
-                  : 'bg-amber-950/80 border-amber-500/50 text-amber-300 hover:bg-amber-900'
-              }`}
-              title="Nhấn để cấu hình kết nối Google Sheets"
-            >
-              <Database className="w-4 h-4" />
-              <div className="text-left">
-                <div className="flex items-center space-x-1">
-                  {settings.webAppUrl ? (
-                    <>
-                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                      <span className="font-semibold">Google Sheets OK</span>
-                    </>
-                  ) : (
-                    <>
-                      <AlertTriangle className="w-3 h-3 text-amber-400" />
-                      <span className="font-semibold">Chưa nối Apps Script</span>
-                    </>
-                  )}
+            {settings.currentUser?.role === 'ADMIN' ? (
+              <button
+                onClick={onOpenSettings}
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                  settings.webAppUrl
+                    ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900 cursor-pointer'
+                    : 'bg-amber-950/80 border-amber-500/50 text-amber-300 hover:bg-amber-900 cursor-pointer'
+                }`}
+                title="Nhấn để cấu hình kết nối Google Sheets (Dành cho Admin)"
+              >
+                <Database className="w-4 h-4" />
+                <div className="text-left">
+                  <div className="flex items-center space-x-1">
+                    {settings.webAppUrl ? (
+                      <>
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        <span className="font-semibold">Google Sheets OK</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="w-3 h-3 text-amber-400" />
+                        <span className="font-semibold">Chưa nối Apps Script</span>
+                      </>
+                    )}
+                  </div>
+                  <span className="text-[10px] opacity-80 block truncate max-w-[120px]">
+                    {settings.webAppUrl ? 'Sẵn sàng ghi dữ liệu' : 'Lưu dữ liệu local'}
+                  </span>
                 </div>
-                <span className="text-[10px] opacity-80 block truncate max-w-[120px]">
-                  {settings.webAppUrl ? 'Sẵn sàng ghi dữ liệu' : 'Lưu dữ liệu local'}
-                </span>
+              </button>
+            ) : (
+              <div
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-medium select-none ${
+                  settings.webAppUrl
+                    ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300'
+                    : 'bg-amber-950/80 border-amber-500/50 text-amber-300'
+                }`}
+                title="Trạng thái kết nối dữ liệu Google Sheets"
+              >
+                <Database className="w-4 h-4" />
+                <div className="text-left">
+                  <div className="flex items-center space-x-1">
+                    {settings.webAppUrl ? (
+                      <>
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        <span className="font-semibold">Google Sheets OK</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="w-3 h-3 text-amber-400" />
+                        <span className="font-semibold">Chưa nối Apps Script</span>
+                      </>
+                    )}
+                  </div>
+                  <span className="text-[10px] opacity-80 block truncate max-w-[120px]">
+                    {settings.webAppUrl ? 'Dữ liệu trực tuyến' : 'Dữ liệu cục bộ'}
+                  </span>
+                </div>
               </div>
-            </button>
+            )}
 
             {/* Quick Settings & Auth Info */}
             <div className="flex items-center space-x-1.5">
@@ -202,7 +235,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               ) : (
                 <button
-                  onClick={onOpenSettings}
+                  onClick={onOpenLogin || onOpenSettings}
                   className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border transition-all bg-amber-500/20 border-amber-400/50 text-amber-200 hover:bg-amber-500/30 font-bold text-xs"
                   title="Đăng nhập Cán bộ Quản lý & Xử lý"
                 >

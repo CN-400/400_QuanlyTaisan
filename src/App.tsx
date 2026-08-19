@@ -128,20 +128,24 @@ export default function App() {
   };
 
   const handleOpenSettings = () => {
-    if (settings.currentUser) {
-      if (settings.currentUser.role === 'ADMIN') {
-        setShowSettingsModal(true);
-      } else {
-        showToastHandler('Chỉ tài khoản Quản trị viên (ADMIN) mới có quyền truy cập Cài đặt hệ thống!', 'error');
-      }
+    if (settings.currentUser && settings.currentUser.role === 'ADMIN') {
+      setShowSettingsModal(true);
     } else {
-      setShowAdminLoginModal(true);
+      showToastHandler('Chức năng Cài đặt hệ thống chỉ dành riêng cho Quản trị viên (ADMIN)!', 'error');
+    }
+  };
+
+  const handleOpenGuide = () => {
+    if (settings.currentUser && settings.currentUser.role === 'ADMIN') {
+      setShowGuideModal(true);
+    } else {
+      showToastHandler('Tài liệu Hướng dẫn Apps Script & Mã Code.gs chỉ dành riêng cho Quản trị viên (ADMIN)!', 'error');
     }
   };
 
   const handleSelectTab = (tab: ActiveTab) => {
     if (tab === 'guide') {
-      setShowGuideModal(true);
+      handleOpenGuide();
       return;
     }
 
@@ -156,7 +160,8 @@ export default function App() {
         setActiveTab={handleSelectTab}
         settings={settings}
         onOpenSettings={handleOpenSettings}
-        onOpenGuide={() => setShowGuideModal(true)}
+        onOpenGuide={handleOpenGuide}
+        onOpenLogin={() => setShowAdminLoginModal(true)}
         repairCount={repairRequests.filter((r) => r.status === 'Đề xuất').length}
         procurementCount={procurementRequests.filter((p) => p.status === 'Đề xuất').length}
         isAdminLoggedIn={Boolean(settings.token && settings.currentUser)}
@@ -171,7 +176,7 @@ export default function App() {
             setActiveTab={handleSelectTab}
             repairRequests={repairRequests}
             procurementRequests={procurementRequests}
-            onOpenGuide={() => setShowGuideModal(true)}
+            onOpenGuide={handleOpenGuide}
           />
         )}
 
@@ -204,7 +209,7 @@ export default function App() {
             settings={settings}
             onUpdateSettings={handleUpdateSettings}
             showToast={showToastHandler}
-            onOpenGuide={() => setShowGuideModal(true)}
+            onOpenGuide={handleOpenGuide}
             onRequireLogin={() => setShowAdminLoginModal(true)}
           />
         )}
@@ -231,25 +236,28 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 text-xs">
-            <button
-              onClick={() => setShowGuideModal(true)}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg border border-amber-500/50 transition-all font-semibold"
-              title="Mở tài liệu hướng dẫn và lấy mã Code.gs Apps Script"
-            >
-              <FileCode className="w-3.5 h-3.5 text-amber-400" />
-              <span>Hướng dẫn Apps Script & Mã Code.gs</span>
-            </button>
+          {/* Admin-only quick management buttons */}
+          {settings.currentUser?.role === 'ADMIN' && (
+            <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 text-xs">
+              <button
+                onClick={handleOpenGuide}
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg border border-amber-500/50 transition-all font-semibold cursor-pointer"
+                title="Mở tài liệu hướng dẫn và lấy mã Code.gs Apps Script (Chỉ dành cho Admin)"
+              >
+                <FileCode className="w-3.5 h-3.5 text-amber-400" />
+                <span>Hướng dẫn Apps Script & Mã Code.gs</span>
+              </button>
 
-            <button
-              onClick={handleOpenSettings}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-blue-900/60 hover:bg-blue-800 text-blue-200 rounded-lg border border-blue-700/60 transition-all font-semibold"
-              title="Cài đặt hệ thống"
-            >
-              <Settings className="w-3.5 h-3.5 text-blue-300" />
-              <span>Cài đặt hệ thống</span>
-            </button>
-          </div>
+              <button
+                onClick={handleOpenSettings}
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-blue-900/60 hover:bg-blue-800 text-blue-200 rounded-lg border border-blue-700/60 transition-all font-semibold cursor-pointer"
+                title="Cài đặt hệ thống (Chỉ dành cho Admin)"
+              >
+                <Settings className="w-3.5 h-3.5 text-blue-300" />
+                <span>Cài đặt hệ thống</span>
+              </button>
+            </div>
+          )}
         </div>
       </footer>
 
@@ -294,7 +302,7 @@ export default function App() {
         />
       )}
 
-      {showSettingsModal && (
+      {showSettingsModal && settings.currentUser?.role === 'ADMIN' && (
         <SettingsModal
           settings={settings}
           onSaveSettings={handleUpdateSettings}
@@ -305,7 +313,7 @@ export default function App() {
         />
       )}
 
-      {showGuideModal && (
+      {showGuideModal && settings.currentUser?.role === 'ADMIN' && (
         <GoogleSheetsModal
           settings={settings}
           onSaveSettings={handleUpdateSettings}

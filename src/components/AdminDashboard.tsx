@@ -34,7 +34,7 @@ import { UserManagementModal } from './UserManagementModal';
 import { ActionPermissionLoginModal } from './ActionPermissionLoginModal';
 import { fetchAllFromGoogleSheets, updateStatusInGoogleSheets, deleteRecordInGoogleSheets } from '../services/sheetsApi';
 import { saveProcurementRequests, saveRepairRequests } from '../services/storage';
-import { formatVnDateTime, formatVnDateOnly, cleanGoogleSheetsDate } from '../utils/dateFormatter';
+import { formatVnDateTime, formatVnDateOnly, cleanGoogleSheetsDate, compareRequestsNewestFirst } from '../utils/dateFormatter';
 
 interface AdminDashboardProps {
   repairRequests: RepairRequest[];
@@ -265,44 +265,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  // Filter repair requests
-  const filteredRepairs = repairRequests.filter((r) => {
-    const matchesSearch =
-      r.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.assetName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (r.handler && r.handler.toLowerCase().includes(searchTerm.toLowerCase()));
+  // Filter and sort repair requests (newest first)
+  const filteredRepairs = repairRequests
+    .filter((r) => {
+      const matchesSearch =
+        r.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.assetName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (r.handler && r.handler.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchesDept = selectedDept === 'Tất cả' || r.department === selectedDept;
-    const matchesStatus = selectedStatus === 'Tất cả' || r.status === selectedStatus;
-    const matchesUrgency = selectedUrgency === 'Tất cả' || r.urgency === selectedUrgency;
+      const matchesDept = selectedDept === 'Tất cả' || r.department === selectedDept;
+      const matchesStatus = selectedStatus === 'Tất cả' || r.status === selectedStatus;
+      const matchesUrgency = selectedUrgency === 'Tất cả' || r.urgency === selectedUrgency;
 
-    const itemDate = getItemDateString(r.reportDate, r.createdAt);
-    const matchesStartDate = !startDate || (itemDate ? itemDate >= startDate : true);
-    const matchesEndDate = !endDate || (itemDate ? itemDate <= endDate : true);
+      const itemDate = getItemDateString(r.reportDate, r.createdAt);
+      const matchesStartDate = !startDate || (itemDate ? itemDate >= startDate : true);
+      const matchesEndDate = !endDate || (itemDate ? itemDate <= endDate : true);
 
-    return matchesSearch && matchesDept && matchesStatus && matchesUrgency && matchesStartDate && matchesEndDate;
-  });
+      return matchesSearch && matchesDept && matchesStatus && matchesUrgency && matchesStartDate && matchesEndDate;
+    })
+    .sort(compareRequestsNewestFirst);
 
-  // Filter procurement requests
-  const filteredProcurements = procurementRequests.filter((p) => {
-    const matchesSearch =
-      p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.equipmentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.handler && p.handler.toLowerCase().includes(searchTerm.toLowerCase()));
+  // Filter and sort procurement requests (newest first)
+  const filteredProcurements = procurementRequests
+    .filter((p) => {
+      const matchesSearch =
+        p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.equipmentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.handler && p.handler.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchesDept = selectedDept === 'Tất cả' || p.department === selectedDept;
-    const matchesStatus = selectedStatus === 'Tất cả' || p.status === selectedStatus;
+      const matchesDept = selectedDept === 'Tất cả' || p.department === selectedDept;
+      const matchesStatus = selectedStatus === 'Tất cả' || p.status === selectedStatus;
 
-    const itemDate = getItemDateString(p.requestDate, p.createdAt);
-    const matchesStartDate = !startDate || (itemDate ? itemDate >= startDate : true);
-    const matchesEndDate = !endDate || (itemDate ? itemDate <= endDate : true);
+      const itemDate = getItemDateString(p.requestDate, p.createdAt);
+      const matchesStartDate = !startDate || (itemDate ? itemDate >= startDate : true);
+      const matchesEndDate = !endDate || (itemDate ? itemDate <= endDate : true);
 
-    return matchesSearch && matchesDept && matchesStatus && matchesStartDate && matchesEndDate;
-  });
+      return matchesSearch && matchesDept && matchesStatus && matchesStartDate && matchesEndDate;
+    })
+    .sort(compareRequestsNewestFirst);
 
   // Save Status Update
   const handleSaveStatus = async (

@@ -2,6 +2,7 @@ import { AppSettings, ProcurementRequest, RepairRequest } from '../types';
 import { SAMPLE_PROCUREMENT_REQUESTS, SAMPLE_REPAIR_REQUESTS } from '../constants/data';
 import { DEFAULT_APPS_SCRIPT_URL, DEFAULT_MANAGER_EMAILS, isValidAppsScriptUrl } from '../constants/config';
 import { fetchSettingsFromGoogleSheets, saveSettingsToGoogleSheets } from './sheetsApi';
+import { compareRequestsNewestFirst } from '../utils/dateFormatter';
 
 const REPAIR_STORAGE_KEY = 'vtb_asset_repair_requests_v1';
 const PROCUREMENT_STORAGE_KEY = 'vtb_asset_procurement_requests_v1';
@@ -160,36 +161,42 @@ export const getRepairRequests = (): RepairRequest[] => {
   const saved = localStorage.getItem(REPAIR_STORAGE_KEY);
   if (saved) {
     try {
-      return JSON.parse(saved);
+      const parsed: RepairRequest[] = JSON.parse(saved);
+      return parsed.sort(compareRequestsNewestFirst);
     } catch (e) {
       console.error('Failed to load repair requests', e);
     }
   }
   // Initialize with sample data if empty
-  localStorage.setItem(REPAIR_STORAGE_KEY, JSON.stringify(SAMPLE_REPAIR_REQUESTS));
-  return SAMPLE_REPAIR_REQUESTS;
+  const initial = [...SAMPLE_REPAIR_REQUESTS].sort(compareRequestsNewestFirst);
+  localStorage.setItem(REPAIR_STORAGE_KEY, JSON.stringify(initial));
+  return initial;
 };
 
 export const saveRepairRequests = (requests: RepairRequest[]): void => {
-  localStorage.setItem(REPAIR_STORAGE_KEY, JSON.stringify(requests));
+  const sorted = [...requests].sort(compareRequestsNewestFirst);
+  localStorage.setItem(REPAIR_STORAGE_KEY, JSON.stringify(sorted));
 };
 
 export const getProcurementRequests = (): ProcurementRequest[] => {
   const saved = localStorage.getItem(PROCUREMENT_STORAGE_KEY);
   if (saved) {
     try {
-      return JSON.parse(saved);
+      const parsed: ProcurementRequest[] = JSON.parse(saved);
+      return parsed.sort(compareRequestsNewestFirst);
     } catch (e) {
       console.error('Failed to load procurement requests', e);
     }
   }
   // Initialize with sample data if empty
-  localStorage.setItem(PROCUREMENT_STORAGE_KEY, JSON.stringify(SAMPLE_PROCUREMENT_REQUESTS));
-  return SAMPLE_PROCUREMENT_REQUESTS;
+  const initial = [...SAMPLE_PROCUREMENT_REQUESTS].sort(compareRequestsNewestFirst);
+  localStorage.setItem(PROCUREMENT_STORAGE_KEY, JSON.stringify(initial));
+  return initial;
 };
 
 export const saveProcurementRequests = (requests: ProcurementRequest[]): void => {
-  localStorage.setItem(PROCUREMENT_STORAGE_KEY, JSON.stringify(requests));
+  const sorted = [...requests].sort(compareRequestsNewestFirst);
+  localStorage.setItem(PROCUREMENT_STORAGE_KEY, JSON.stringify(sorted));
 };
 
 /**
