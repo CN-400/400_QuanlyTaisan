@@ -335,8 +335,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     createdAt: String(item['Thời gian khởi tạo'] || item.createdAt || new Date().toISOString()).trim(),
   });
 
-  // Fetch data directly from Google Sheets
+  // Fetch data directly from Google Sheets (Admin only)
   const handleFetchGoogleSheets = async () => {
+    if (!isAdmin) {
+      showToast('Chỉ tài khoản Quản trị viên (Admin) mới có quyền tải dữ liệu từ Google Sheets.', 'error');
+      return;
+    }
+
     if (!settings.webAppUrl) {
       showToast('Chưa cấu hình Google Apps Script Web App URL.', 'error');
       onOpenGuide();
@@ -624,14 +629,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </button>
             )}
 
-            <button
-              onClick={handleFetchGoogleSheets}
-              disabled={syncing}
-              className="px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center space-x-1.5"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              <span>Tải từ Google Sheets</span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={handleFetchGoogleSheets}
+                disabled={syncing}
+                className="px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center space-x-1.5 cursor-pointer"
+                title="Đồng bộ tải lại dữ liệu mới nhất từ Google Sheets (Chỉ dành cho Admin)"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                <span>Tải từ Google Sheets</span>
+              </button>
+            )}
 
             <button
               onClick={handleExportExcel}
