@@ -34,7 +34,14 @@ import { UserManagementModal } from './UserManagementModal';
 import { ActionPermissionLoginModal } from './ActionPermissionLoginModal';
 import { fetchAllFromGoogleSheets, updateStatusInGoogleSheets, deleteRecordInGoogleSheets } from '../services/sheetsApi';
 import { saveProcurementRequests, saveRepairRequests } from '../services/storage';
-import { formatVnDateTime, formatVnDateOnly, cleanGoogleSheetsDate, compareRequestsNewestFirst } from '../utils/dateFormatter';
+import {
+  formatVnDateTime,
+  formatVnDateOnly,
+  cleanGoogleSheetsDate,
+  compareRequestsNewestFirst,
+  getDateYmdInVnTime,
+  getLocalTodayYmd,
+} from '../utils/dateFormatter';
 
 interface AdminDashboardProps {
   repairRequests: RepairRequest[];
@@ -206,58 +213,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  // Date extractor helper
+  // Date extractor helper strictly in Vietnam timezone (GMT+7)
   const getItemDateString = (dateVal?: string, fallbackIso?: string): string => {
-    if (dateVal && dateVal.trim()) {
-      const v = dateVal.trim();
-      // If matches YYYY-MM-DD
-      const isoYmd = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (isoYmd) {
-        return `${isoYmd[1]}-${isoYmd[2]}-${isoYmd[3]}`;
-      }
-      // If matches DD-MM-YYYY or DD/MM/YYYY
-      const dmy = v.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
-      if (dmy) {
-        return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
-      }
-      // Try date parsing
-      const d = new Date(v);
-      if (!isNaN(d.getTime())) {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${day}`;
-      }
-    }
-    if (fallbackIso && fallbackIso.trim()) {
-      const v = fallbackIso.trim();
-      const isoYmd = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (isoYmd) {
-        return `${isoYmd[1]}-${isoYmd[2]}-${isoYmd[3]}`;
-      }
-    }
-    return '';
+    const ymd = getDateYmdInVnTime(dateVal);
+    if (ymd) return ymd;
+    return getDateYmdInVnTime(fallbackIso);
   };
 
-  // Quick date presets
+  // Quick date presets in Vietnam timezone
   const setDatePreset = (preset: 'today' | '7days' | 'thisMonth' | 'thisYear' | 'all') => {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = getLocalTodayYmd(now);
     if (preset === 'today') {
       setStartDate(todayStr);
       setEndDate(todayStr);
     } else if (preset === '7days') {
       const past = new Date();
       past.setDate(now.getDate() - 7);
-      setStartDate(past.toISOString().split('T')[0]);
+      setStartDate(getLocalTodayYmd(past));
       setEndDate(todayStr);
     } else if (preset === 'thisMonth') {
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-      setStartDate(firstDay.toISOString().split('T')[0]);
+      setStartDate(getLocalTodayYmd(firstDay));
       setEndDate(todayStr);
     } else if (preset === 'thisYear') {
       const firstDay = new Date(now.getFullYear(), 0, 1);
-      setStartDate(firstDay.toISOString().split('T')[0]);
+      setStartDate(getLocalTodayYmd(firstDay));
       setEndDate(todayStr);
     } else if (preset === 'all') {
       setStartDate('');

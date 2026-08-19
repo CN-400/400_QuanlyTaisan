@@ -991,23 +991,36 @@ function writeLog(logSheet, actorUsername, action, targetUsername, result, detai
 }
 
 /**
- * Định dạng ngày chuẩn Việt Nam (dd-MM-yyyy)
+ * Định dạng ngày chuẩn Việt Nam (dd-MM-yyyy) theo múi giờ Việt Nam (GMT+7, Asia/Ho_Chi_Minh)
  */
 function formatVnDateAppsScript(val) {
   if (!val) return "";
   if (val instanceof Date) {
     if (isNaN(val.getTime())) return "";
-    var d = val.getDate();
-    var m = val.getMonth() + 1;
-    var y = val.getFullYear();
-    return (d < 10 ? "0" : "") + d + "-" + (m < 10 ? "0" : "") + m + "-" + y;
+    try {
+      return Utilities.formatDate(val, "Asia/Ho_Chi_Minh", "dd-MM-yyyy");
+    } catch (e) {
+      var d = val.getDate();
+      var m = val.getMonth() + 1;
+      var y = val.getFullYear();
+      return (d < 10 ? "0" : "") + d + "-" + (m < 10 ? "0" : "") + m + "-" + y;
+    }
   }
   var str = String(val).trim();
-  if (str.indexOf("T") > 0) {
+  if (str.indexOf("T") > 0 || str.indexOf("Z") > 0) {
     var dt = new Date(str);
     if (!isNaN(dt.getTime())) {
-      return formatVnDateAppsScript(dt);
+      try {
+        return Utilities.formatDate(dt, "Asia/Ho_Chi_Minh", "dd-MM-yyyy");
+      } catch (e) {
+        return formatVnDateAppsScript(dt);
+      }
     }
+  }
+  // Nếu là chuỗi YYYY-MM-DD
+  var ymdMatch = str.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+  if (ymdMatch) {
+    return ymdMatch[3] + "-" + ymdMatch[2] + "-" + ymdMatch[1];
   }
   return str;
 }

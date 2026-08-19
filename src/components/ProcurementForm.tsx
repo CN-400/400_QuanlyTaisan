@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { DEPARTMENTS, EQUIPMENT_LIST } from '../constants/data';
 import { AppSettings, ProcurementRequest } from '../types';
-import { formatVnDateTime, formatVnDateOnly } from '../utils/dateFormatter';
+import { formatVnDateTime, formatVnDateOnly, getLocalTodayYmd } from '../utils/dateFormatter';
 import { generateNextProcurementId, saveProcurementRequests } from '../services/storage';
 import { syncProcurementToGoogleSheets } from '../services/sheetsApi';
 import { PrintTicketModal } from './PrintTicketModal';
@@ -41,7 +41,7 @@ export const ProcurementForm: React.FC<ProcurementFormProps> = ({
   onBack,
   showToast,
 }) => {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalTodayYmd();
 
   // Form State
   const [nextId, setNextId] = useState<string>('');

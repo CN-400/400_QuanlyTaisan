@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { DEPARTMENTS, URGENCY_LEVELS } from '../constants/data';
 import { AppSettings, RepairRequest, UrgencyLevel } from '../types';
-import { formatVnDateTime } from '../utils/dateFormatter';
+import { formatVnDateTime, getLocalTodayYmd } from '../utils/dateFormatter';
 import { generateNextRepairId, saveRepairRequests } from '../services/storage';
 import { syncRepairToGoogleSheets } from '../services/sheetsApi';
 import { PrintTicketModal } from './PrintTicketModal';
@@ -38,8 +38,8 @@ export const RepairForm: React.FC<RepairFormProps> = ({
   onBack,
   showToast,
 }) => {
-  // Today date formatted YYYY-MM-DD
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Today date formatted YYYY-MM-DD in Vietnam timezone (GMT+7)
+  const todayStr = getLocalTodayYmd();
 
   // Form State
   const [nextId, setNextId] = useState<string>('');
