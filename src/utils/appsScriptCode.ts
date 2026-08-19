@@ -14,7 +14,7 @@ export const GOOGLE_APPS_SCRIPT_CODE = `/**
  *   - Tự động gửi email thông báo cho Cán bộ Quản lý
  */
 
-var DEFAULT_MANAGER_EMAILS = "qlts.ninhbinh@vietinbank.vn";
+var DEFAULT_MANAGER_EMAILS = "trongduc.ict@gmail.com, ha.dinhthanh@vietinbank.vn, thuctq@vietinbank.vn";
 
 function doGet(e) {
   return handleRequest(e, "GET");
@@ -970,7 +970,10 @@ function sendEmailNotificationForRepair(recipientEmail, data, repairId, timestam
       '</div>' +
       '</div>';
 
-    MailApp.sendEmail({ to: recipientEmail, subject: subject, htmlBody: htmlBody });
+    var cleanRecipients = (recipientEmail || "").replace(/;/g, ",").trim();
+    if (cleanRecipients) {
+      MailApp.sendEmail({ to: cleanRecipients, subject: subject, htmlBody: htmlBody });
+    }
   } catch (err) {
     Logger.log("Lỗi gửi email sửa chữa: " + err.toString());
   }
@@ -1007,7 +1010,10 @@ function sendEmailNotificationForProcurement(recipientEmail, data, procurementId
       '</div>' +
       '</div>';
 
-    MailApp.sendEmail({ to: recipientEmail, subject: subject, htmlBody: htmlBody });
+    var cleanRecipients = (recipientEmail || "").replace(/;/g, ",").trim();
+    if (cleanRecipients) {
+      MailApp.sendEmail({ to: cleanRecipients, subject: subject, htmlBody: htmlBody });
+    }
   } catch (err) {
     Logger.log("Lỗi gửi email mua sắm: " + err.toString());
   }

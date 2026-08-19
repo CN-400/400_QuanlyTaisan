@@ -1,6 +1,6 @@
 import { AppSettings, ProcurementRequest, RepairRequest } from '../types';
 import { SAMPLE_PROCUREMENT_REQUESTS, SAMPLE_REPAIR_REQUESTS } from '../constants/data';
-import { DEFAULT_APPS_SCRIPT_URL, isValidAppsScriptUrl } from '../constants/config';
+import { DEFAULT_APPS_SCRIPT_URL, DEFAULT_MANAGER_EMAILS, isValidAppsScriptUrl } from '../constants/config';
 import { fetchSettingsFromGoogleSheets, saveSettingsToGoogleSheets } from './sheetsApi';
 
 const REPAIR_STORAGE_KEY = 'vtb_asset_repair_requests_v1';
@@ -53,6 +53,7 @@ export const getAppSettings = (): AppSettings => {
       return {
         adminPassword: 'admin123',
         bankBranchName: 'NGÂN HÀNG TMCP VIETINBANK-CN NINH BÌNH',
+        managerEmail: parsed.managerEmail && parsed.managerEmail.trim() ? parsed.managerEmail : DEFAULT_MANAGER_EMAILS,
         ...parsed,
         webAppUrl: validUrl,
       };
@@ -64,7 +65,7 @@ export const getAppSettings = (): AppSettings => {
     webAppUrl: bootstrapUrl,
     autoSync: true,
     bankBranchName: 'NGÂN HÀNG TMCP VIETINBANK-CN NINH BÌNH',
-    managerEmail: '',
+    managerEmail: DEFAULT_MANAGER_EMAILS,
     adminPassword: 'admin123',
   };
 };

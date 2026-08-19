@@ -172,19 +172,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 flex items-center space-x-1">
-              <Mail className="w-3.5 h-3.5 text-blue-600" />
-              <span>Email Cán bộ Quản lý nhận thông báo</span>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+              <span className="flex items-center space-x-1">
+                <Mail className="w-3.5 h-3.5 text-blue-600" />
+                <span>Danh sách Email nhận thông báo tự động</span>
+              </span>
+              <span className="text-[11px] text-blue-600 font-semibold normal-case">
+                Phân cách bằng dấu phẩy (,) hoặc chấm phẩy (;)
+              </span>
             </label>
             <input
               type="text"
               value={managerEmail}
               onChange={(e) => setManagerEmail(e.target.value)}
-              placeholder="qlts.ninhbinh@vietinbank.vn (Nhiều email cách nhau bằng dấu phẩy)"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-600 outline-none text-xs"
+              placeholder="trongduc.ict@gmail.com, ha.dinhthanh@vietinbank.vn, thuctq@vietinbank.vn"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-600 outline-none text-xs font-medium text-gray-900"
             />
-            <p className="mt-1 text-[11px] text-gray-500">
-              Tự động gửi mail thông báo kèm toàn bộ chi tiết phiếu cho Cán bộ Quản lý khi có đề nghị mới.
+            {/* Email chips preview */}
+            {managerEmail && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] text-gray-500 font-semibold">Đang cấu hình nhận mail:</span>
+                {managerEmail
+                  .split(/[;,]+/)
+                  .map((em) => em.trim())
+                  .filter(Boolean)
+                  .map((em, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200"
+                    >
+                      📧 {em}
+                    </span>
+                  ))}
+              </div>
+            )}
+            <p className="mt-1.5 text-[11px] text-gray-500 leading-relaxed">
+              💡 Mỗi khi cán bộ gửi phiếu Đề nghị Sửa chữa hoặc Mua sắm mới, hệ thống sẽ tự động gửi email thông báo chi tiết đến toàn bộ danh sách địa chỉ trên.
             </p>
           </div>
 

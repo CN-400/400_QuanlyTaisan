@@ -1,6 +1,9 @@
 export const DEFAULT_APPS_SCRIPT_URL =
   'https://script.google.com/macros/s/AKfycbzYcjvYr6gHHyWfOfapc7Y9p-pvA4Aj6sRX9-h-VrO0MEIZJSsWVGEIp7Mc62RaYguW/exec';
 
+export const DEFAULT_MANAGER_EMAILS =
+  'trongduc.ict@gmail.com, ha.dinhthanh@vietinbank.vn, thuctq@vietinbank.vn';
+
 /**
  * Validates if a string is a valid Google Apps Script Web App URL ending with /exec
  */

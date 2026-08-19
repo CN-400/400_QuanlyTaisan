@@ -157,16 +157,38 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
             </div>
 
             <div className="pt-3 border-t border-slate-800">
-              <label className="block text-xs font-bold text-amber-300 mb-1">
-                📧 Email Cán bộ Quản lý nhận thông báo tự động khi có đề nghị mới:
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-amber-300">
+                  📧 Danh sách Email nhận thông báo tự động:
+                </label>
+                <span className="text-[11px] text-slate-400">
+                  (Dùng dấu phẩy hoặc chấm phẩy để phân cách)
+                </span>
+              </div>
               <input
                 type="text"
                 value={managerEmail}
                 onChange={(e) => setManagerEmail(e.target.value)}
-                placeholder="Ví dụ: qlts.ninhbinh@vietinbank.vn (Phân cách dấu phẩy nếu nhiều email)"
-                className="w-full px-4 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs focus:ring-2 focus:ring-amber-400 outline-none"
+                placeholder="trongduc.ict@gmail.com, ha.dinhthanh@vietinbank.vn, thuctq@vietinbank.vn"
+                className="w-full px-4 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs focus:ring-2 focus:ring-amber-400 outline-none font-medium"
               />
+              {managerEmail && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] text-slate-400 font-semibold">Địa chỉ nhận thông báo:</span>
+                  {managerEmail
+                    .split(/[;,]+/)
+                    .map((em) => em.trim())
+                    .filter(Boolean)
+                    .map((em, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                      >
+                        ✉️ {em}
+                      </span>
+                    ))}
+                </div>
+              )}
             </div>
 
             {(inputUrl.includes('/macros/library/') || inputUrl.includes('/edit')) && (
