@@ -86,7 +86,16 @@ function handleRequest(e, method) {
     var data = contents.data || contents;
     var recipientEmail = (contents.managerEmail && contents.managerEmail.trim()) 
       ? contents.managerEmail.trim() 
-      : DEFAULT_MANAGER_EMAILS;
+      : "";
+    if (!recipientEmail) {
+      var chRows = sheetToObjects(chSheet);
+      if (chRows.length > 0) {
+        recipientEmail = (chRows[0]["Email Quản lý"] || chRows[0]["managerEmail"] || "").toString().trim();
+      }
+    }
+    if (!recipientEmail) {
+      recipientEmail = DEFAULT_MANAGER_EMAILS;
+    }
 
     // 1. Lấy cấu hình hệ thống
     if (action === "getSettings") {
@@ -780,6 +789,47 @@ function handleRequest(e, method) {
       return responseJSON({ success: true, status: "success", logs: sheetToObjects(logSheet) });
     }
 
+    // 16. Gửi Email Thử nghiệm (Test Email Notifications)
+    if (action === "testEmail") {
+      var testTarget = (contents.managerEmail || data.managerEmail || recipientEmail || "").toString().trim();
+      if (!testTarget) {
+        return responseJSON({
+          success: false,
+          status: "error",
+          message: "Chưa cấu hình địa chỉ email nhận thông báo!"
+        });
+      }
+
+      var testSubject = "[VIETINBANK NINH BÌNH] Thư thử nghiệm thông báo hệ thống - " + new Date().toLocaleTimeString("vi-VN");
+      var testBody = '<div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; border: 1px solid #002060; border-radius: 8px; overflow: hidden;">' +
+        '<div style="background-color: #002060; padding: 16px; text-align: center; color: #ffffff;">' +
+        '<h2 style="margin: 0; font-size: 18px; text-transform: uppercase;">VIETINBANK CHI NHÁNH NINH BÌNH</h2>' +
+        '<p style="margin: 4px 0 0 0; font-size: 13px; color: #facc15; font-weight: bold;">KIỂM TRA GỬI THÔNG BÁO TỰ ĐỘNG TỚI NHIỀU EMAIL</p>' +
+        '</div>' +
+        '<div style="padding: 20px; line-height: 1.6; font-size: 14px;">' +
+        '<p>Kính gửi Quý Cán bộ Quản lý,</p>' +
+        '<p>Đây là thư kiểm tra tự động từ <b>Hệ thống Đăng ký Sửa chữa & Mua sắm Tài sản - VietinBank Chi nhánh Ninh Bình</b>.</p>' +
+        '<div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 12px; margin: 16px 0; border-radius: 4px;">' +
+        '<p style="margin: 0; color: #065f46; font-weight: bold;">✔ Tính năng gửi thông báo tới nhiều địa chỉ email đang hoạt động chính xác!</p>' +
+        '<p style="margin: 4px 0 0 0; font-size: 12px; color: #047857;">Mỗi địa chỉ trong danh sách đều được hệ thống gửi riêng biệt để đảm bảo 100% người nhận nhận được thư.</p>' +
+        '</div>' +
+        '<p><b>Thời gian gửi:</b> ' + new Date().toLocaleString("vi-VN") + '</p>' +
+        '<p style="margin-top: 20px;">Trân trọng cảm ơn!</p>' +
+        '</div>' +
+        '<div style="background-color: #f1f5f9; padding: 12px; text-align: center; font-size: 11px; color: #64748b;">' +
+        'Email thử nghiệm từ Ứng dụng Quản lý Tài sản VietinBank Ninh Bình.' +
+        '</div>' +
+        '</div>';
+
+      var testResult = sendToMultipleRecipientsWithReport(testTarget, testSubject, testBody);
+      return responseJSON({
+        success: testResult.sentCount > 0,
+        status: testResult.sentCount > 0 ? "success" : "error",
+        message: testResult.message,
+        details: testResult
+      });
+    }
+
     return responseJSON({ success: false, status: "error", error: "INVALID_REQUEST", message: "Hành động không hợp lệ: " + action });
 
   } catch (err) {
@@ -970,10 +1020,7 @@ function sendEmailNotificationForRepair(recipientEmail, data, repairId, timestam
       '</div>' +
       '</div>';
 
-    var cleanRecipients = (recipientEmail || "").replace(/;/g, ",").trim();
-    if (cleanRecipients) {
-      MailApp.sendEmail({ to: cleanRecipients, subject: subject, htmlBody: htmlBody });
-    }
+    sendToMultipleRecipients(recipientEmail, subject, htmlBody);
   } catch (err) {
     Logger.log("Lỗi gửi email sửa chữa: " + err.toString());
   }
@@ -1010,13 +1057,106 @@ function sendEmailNotificationForProcurement(recipientEmail, data, procurementId
       '</div>' +
       '</div>';
 
-    var cleanRecipients = (recipientEmail || "").replace(/;/g, ",").trim();
-    if (cleanRecipients) {
-      MailApp.sendEmail({ to: cleanRecipients, subject: subject, htmlBody: htmlBody });
-    }
+    sendToMultipleRecipients(recipientEmail, subject, htmlBody);
   } catch (err) {
     Logger.log("Lỗi gửi email mua sắm: " + err.toString());
   }
+}
+
+/**
+ * Gửi email an toàn tới nhiều địa chỉ (Tách danh sách và gửi từng email độc lập)
+ */
+function sendToMultipleRecipients(recipientEmailStr, subject, htmlBody) {
+  if (!recipientEmailStr) return;
+  var cleanStr = String(recipientEmailStr).replace(/;/g, ",");
+  var rawList = cleanStr.split(",");
+  var cleanEmails = [];
+  for (var i = 0; i < rawList.length; i++) {
+    var em = rawList[i].trim();
+    if (em && em.indexOf("@") > 0 && em.indexOf(".") > 0) {
+      if (cleanEmails.indexOf(em) === -1) {
+        cleanEmails.push(em);
+      }
+    }
+  }
+
+  for (var k = 0; k < cleanEmails.length; k++) {
+    var targetEmail = cleanEmails[k];
+    try {
+      MailApp.sendEmail({
+        to: targetEmail,
+        subject: subject,
+        htmlBody: htmlBody
+      });
+    } catch (e1) {
+      try {
+        GmailApp.sendEmail(targetEmail, subject, "", { htmlBody: htmlBody });
+      } catch (e2) {
+        Logger.log("Không thể gửi email tới " + targetEmail + ": " + e2.toString());
+      }
+    }
+  }
+}
+
+/**
+ * Gửi email thử nghiệm và trả về báo cáo kết quả chi tiết từng địa chỉ
+ */
+function sendToMultipleRecipientsWithReport(recipientEmailStr, subject, htmlBody) {
+  if (!recipientEmailStr) return { sentCount: 0, total: 0, message: "Danh sách email trống!" };
+  var cleanStr = String(recipientEmailStr).replace(/;/g, ",");
+  var rawList = cleanStr.split(",");
+  var cleanEmails = [];
+  for (var i = 0; i < rawList.length; i++) {
+    var em = rawList[i].trim();
+    if (em && em.indexOf("@") > 0 && em.indexOf(".") > 0) {
+      if (cleanEmails.indexOf(em) === -1) {
+        cleanEmails.push(em);
+      }
+    }
+  }
+
+  if (cleanEmails.length === 0) {
+    return { sentCount: 0, total: 0, message: "Không tìm thấy địa chỉ email hợp lệ nào trong danh sách!" };
+  }
+
+  var sentList = [];
+  var failedList = [];
+
+  for (var k = 0; k < cleanEmails.length; k++) {
+    var targetEmail = cleanEmails[k];
+    var success = false;
+    try {
+      MailApp.sendEmail({
+        to: targetEmail,
+        subject: subject,
+        htmlBody: htmlBody
+      });
+      success = true;
+    } catch (e1) {
+      try {
+        GmailApp.sendEmail(targetEmail, subject, "", { htmlBody: htmlBody });
+        success = true;
+      } catch (e2) {
+        failedList.push(targetEmail + " (" + e2.message + ")");
+      }
+    }
+    if (success) {
+      sentList.push(targetEmail);
+    }
+  }
+
+  var msg = "Đã gửi thành công tới " + sentList.length + "/" + cleanEmails.length + " email: " + sentList.join(", ");
+  if (failedList.length > 0) {
+    msg += ". Thất bại: " + failedList.join(", ");
+  }
+
+  return {
+    sentCount: sentList.length,
+    total: cleanEmails.length,
+    sentEmails: sentList,
+    failedEmails: failedList,
+    message: msg
+  };
 }
 
 function getOrCreateSheet(ss, name, headers) {

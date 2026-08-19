@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { X, Settings, RotateCcw, Building2, Link2, Mail, Lock, LogOut, ShieldCheck, Eye, EyeOff, Smartphone, Share2, CheckCircle2 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { resetDataToSample } from '../services/storage';
-import { saveSettingsToGoogleSheets } from '../services/sheetsApi';
+import { saveSettingsToGoogleSheets, testEmailNotification } from '../services/sheetsApi';
 import { DEFAULT_APPS_SCRIPT_URL } from '../constants/config';
+import { Loader2, Send } from 'lucide-react';
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -44,6 +45,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const [saving, setSaving] = useState<boolean>(false);
+  const [testingEmail, setTestingEmail] = useState<boolean>(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleTestEmail = async () => {
+    if (!managerEmail.trim()) {
+      showToast('Vui lòng nhập ít nhất 1 địa chỉ email để thử nghiệm!', 'error');
+      return;
+    }
+    setTestingEmail(true);
+    setTestEmailResult(null);
+    const activeUrl = webAppUrl || DEFAULT_APPS_SCRIPT_URL;
+    const res = await testEmailNotification(activeUrl, managerEmail.trim(), settings.token);
+    setTestingEmail(false);
+    setTestEmailResult({ success: res.success, message: res.message });
+    if (res.success) {
+      showToast('Đã gửi email thử nghiệm thành công!', 'success');
+    } else {
+      showToast('Gửi thử nghiệm thất bại: ' + res.message, 'error');
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,8 +227,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   ))}
               </div>
             )}
+            {/* Test Email Button & Result */}
+            <div className="mt-2.5 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={handleTestEmail}
+                disabled={testingEmail || !managerEmail.trim()}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-200 transition-colors disabled:opacity-50"
+              >
+                {testingEmail ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                    <span>Đang gửi thử nghiệm tới các email...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Gửi thử nghiệm Email tới các địa chỉ trên</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {testEmailResult && (
+              <div
+                className={`mt-2 p-2.5 rounded-xl text-xs border ${
+                  testEmailResult.success
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border-rose-200'
+                }`}
+              >
+                <div className="font-semibold flex items-center space-x-1.5">
+                  {testEmailResult.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <X className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{testEmailResult.message}</span>
+                </div>
+              </div>
+            )}
+
             <p className="mt-1.5 text-[11px] text-gray-500 leading-relaxed">
-              💡 Mỗi khi cán bộ gửi phiếu Đề nghị Sửa chữa hoặc Mua sắm mới, hệ thống sẽ tự động gửi email thông báo chi tiết đến toàn bộ danh sách địa chỉ trên.
+              💡 Mỗi khi cán bộ gửi phiếu Đề nghị Sửa chữa hoặc Mua sắm mới, hệ thống sẽ tự động gửi email thông báo chi tiết đến từng địa chỉ trong danh sách trên một cách độc lập.
             </p>
           </div>
 

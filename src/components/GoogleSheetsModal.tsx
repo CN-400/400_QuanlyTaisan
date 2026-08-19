@@ -12,9 +12,10 @@ import {
   Database,
   ChevronDown,
   ChevronUp,
+  Send,
 } from 'lucide-react';
 import { GOOGLE_APPS_SCRIPT_CODE, INSTRUCTIONS_STEPS } from '../utils/appsScriptCode';
-import { testGoogleAppsScriptConnection, saveSettingsToGoogleSheets } from '../services/sheetsApi';
+import { testGoogleAppsScriptConnection, saveSettingsToGoogleSheets, testEmailNotification } from '../services/sheetsApi';
 import { AppSettings } from '../types';
 import { DEFAULT_APPS_SCRIPT_URL } from '../constants/config';
 
@@ -66,6 +67,29 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
   };
 
   const [saving, setSaving] = useState<boolean>(false);
+  const [testingEmail, setTestingEmail] = useState<boolean>(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleTestEmail = async () => {
+    if (!managerEmail.trim()) {
+      showToast('Vui lòng nhập ít nhất 1 địa chỉ email để thử nghiệm!', 'error');
+      return;
+    }
+    if (!inputUrl.trim()) {
+      showToast('Vui lòng nhập Web App URL trước khi gửi thử nghiệm email!', 'error');
+      return;
+    }
+    setTestingEmail(true);
+    setTestEmailResult(null);
+    const res = await testEmailNotification(inputUrl.trim(), managerEmail.trim(), settings.token);
+    setTestingEmail(false);
+    setTestEmailResult({ success: res.success, message: res.message });
+    if (res.success) {
+      showToast('Đã gửi email thử nghiệm thành công tới các địa chỉ cấu hình!', 'success');
+    } else {
+      showToast('Gửi thử nghiệm thất bại: ' + res.message, 'error');
+    }
+  };
 
   const handleSaveUrl = async () => {
     if (!inputUrl.trim()) {
@@ -187,6 +211,47 @@ export const GoogleSheetsModal: React.FC<GoogleSheetsModalProps> = ({
                         ✉️ {em}
                       </span>
                     ))}
+                </div>
+              )}
+
+              {/* Test Email Button */}
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={handleTestEmail}
+                  disabled={testingEmail || !managerEmail.trim()}
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold border border-amber-500/40 transition-colors disabled:opacity-50"
+                >
+                  {testingEmail ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-300" />
+                      <span>Đang gửi thử nghiệm tới các email...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Gửi thử nghiệm Email tới các địa chỉ trên</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {testEmailResult && (
+                <div
+                  className={`mt-2 p-2.5 rounded-xl text-xs border ${
+                    testEmailResult.success
+                      ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/60'
+                      : 'bg-rose-950/80 text-rose-300 border-rose-500/60'
+                  }`}
+                >
+                  <div className="font-semibold flex items-center space-x-1.5">
+                    {testEmailResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : (
+                      <X className="w-4 h-4 text-rose-400 shrink-0" />
+                    )}
+                    <span>{testEmailResult.message}</span>
+                  </div>
                 </div>
               )}
             </div>

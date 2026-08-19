@@ -756,3 +756,46 @@ export async function testGoogleAppsScriptConnection(webAppUrl: string): Promise
   }
 }
 
+/**
+ * Gửi yêu cầu test email thông báo tới Google Apps Script
+ */
+export async function testEmailNotification(
+  webAppUrl: string,
+  managerEmail: string,
+  token?: string
+): Promise<SyncResult> {
+  const urlTrimmed = webAppUrl ? webAppUrl.trim() : '';
+  if (!urlTrimmed || !urlTrimmed.startsWith('http')) {
+    return {
+      success: false,
+      message: 'Vui lòng cấu hình URL Google Apps Script trước khi gửi thử nghiệm email.',
+    };
+  }
+
+  try {
+    const result = await executeSheetsApiCall(urlTrimmed, true, {
+      action: 'testEmail',
+      managerEmail: managerEmail,
+      token: token || '',
+    });
+
+    if (result && (result.success || result.status === 'success')) {
+      return {
+        success: true,
+        message: result.message || 'Đã gửi email thử nghiệm thành công tới các địa chỉ cấu hình!',
+        data: result.details,
+      };
+    } else {
+      return {
+        success: false,
+        message: result?.message || 'Không thể gửi email thử nghiệm. Vui lòng kiểm tra lại quyền truy cập MailApp/GmailApp.',
+      };
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      message: 'Lỗi gửi email: ' + (err.message || 'Không thể kết nối máy chủ'),
+    };
+  }
+}
+
