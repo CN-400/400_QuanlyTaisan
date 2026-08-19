@@ -16,6 +16,8 @@ import {
   Loader2,
   HelpCircle,
   Printer,
+  Plus,
+  Minus,
 } from 'lucide-react';
 import { DEPARTMENTS, EQUIPMENT_LIST } from '../constants/data';
 import { AppSettings, ProcurementRequest } from '../types';
@@ -398,15 +400,60 @@ export const ProcurementForm: React.FC<ProcurementFormProps> = ({
                     Số lượng <span className="text-emerald-600">*</span>
                   </span>
                 </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={999}
-                  value={quantity}
-                  onChange={(e) => setQuantity(parseInt(e.target.value, 10) || 1)}
-                  required
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 outline-none text-sm font-bold text-emerald-900 transition-all shadow-sm"
-                />
+                <div className="flex items-center shadow-sm rounded-xl overflow-hidden border border-gray-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600 bg-white">
+                  {/* Nút Giảm (-) */}
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((prev) => Math.max(1, (prev || 1) - 1))}
+                    disabled={quantity <= 1}
+                    className="w-11 h-10 flex items-center justify-center bg-gray-50 hover:bg-emerald-50 active:bg-emerald-100 text-gray-700 hover:text-emerald-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border-r border-gray-200 cursor-pointer shrink-0"
+                    title="Giảm số lượng (-)"
+                    aria-label="Giảm số lượng"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+
+                  {/* Ô nhập số trực tiếp từ bàn phím */}
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    min={1}
+                    max={999}
+                    value={quantity === 0 ? '' : quantity}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setQuantity(0);
+                      } else {
+                        const parsed = parseInt(val, 10);
+                        if (!isNaN(parsed)) {
+                          setQuantity(Math.max(1, Math.min(999, parsed)));
+                        }
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!quantity || quantity < 1) {
+                        setQuantity(1);
+                      }
+                    }}
+                    placeholder="1"
+                    required
+                    className="w-full text-center py-2 bg-transparent outline-none text-base font-bold text-emerald-950 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+
+                  {/* Nút Tăng (+) */}
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((prev) => Math.min(999, (prev || 0) + 1))}
+                    disabled={quantity >= 999}
+                    className="w-11 h-10 flex items-center justify-center bg-gray-50 hover:bg-emerald-50 active:bg-emerald-100 text-gray-700 hover:text-emerald-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border-l border-gray-200 cursor-pointer shrink-0"
+                    title="Tăng số lượng (+)"
+                    aria-label="Tăng số lượng"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
 

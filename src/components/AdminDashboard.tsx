@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import {
   LayoutDashboard,
   Wrench,
@@ -7,6 +8,7 @@ import {
   Filter,
   RefreshCw,
   Download,
+  FileSpreadsheet,
   Printer,
   Edit,
   Trash2,
@@ -404,88 +406,147 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  // Export CSV Excel
-  const handleExportCSV = () => {
-    let headers: string[] = [];
-    let rows: any[] = [];
-
+  // Helper to extract and format data rows for export
+  const getExportData = () => {
     if (activeSubTab === 'repair') {
-      headers = [
-        'Mã đề nghị',
-        'Họ tên',
-        'Phòng ban',
-        'Tên tài sản',
-        'Tình trạng',
-        'Ngày báo hỏng',
-        'Đề xuất',
-        'Khẩn cấp',
-        'Trạng thái',
-        'Cán bộ xử lý',
-        'Ngày hoàn thành',
-        'Ghi chú',
+      const headers = [
+        'STT',
+        'Mã Đề Nghị',
+        'Họ Và Tên Cán Bộ',
+        'Phòng Ban / Đơn Vị',
+        'Tên Tài Sản Hỏng',
+        'Tình Trạng Hư Hỏng',
+        'Ngày Báo Hỏng',
+        'Đề Xuất Xử Lý',
+        'Mức Độ Khẩn Cấp',
+        'Trạng Thái Xử Lý',
+        'Cán Bộ Phân Công',
+        'Ngày Hoàn Thành',
+        'Ghi Chú',
       ];
-      rows = filteredRepairs.map((r) => [
-        r.id,
-        r.fullName,
-        r.department,
-        r.assetName,
-        r.condition,
-        r.reportDate,
-        r.proposal,
-        r.urgency,
-        r.status,
+      const rows = filteredRepairs.map((r, idx) => [
+        idx + 1,
+        r.id || '',
+        r.fullName || '',
+        r.department || '',
+        r.assetName || '',
+        r.condition || '',
+        r.reportDate || '',
+        r.proposal || '',
+        r.urgency || '',
+        r.status || '',
         r.handler || '',
         r.completionDate || '',
         r.note || '',
       ]);
+      const sheetName = 'DeNghi_SuaChua';
+      const filename = `DanhSach_SuaChua_VietinBank_${new Date().toISOString().split('T')[0]}`;
+      return { headers, rows, sheetName, filename };
     } else {
-      headers = [
-        'Mã đề nghị',
-        'Họ tên',
-        'Phòng ban',
-        'Tên thiết bị',
-        'Số lượng',
-        'Chủng loại',
-        'Lý do',
-        'Yêu cầu kỹ thuật',
-        'Ngày đề nghị',
-        'Thời gian mua',
-        'Cán bộ xử lý',
-        'Trạng thái',
-        'Ngày hoàn thành',
-        'Ghi chú',
+      const headers = [
+        'STT',
+        'Mã Đề Nghị',
+        'Họ Và Tên Cán Bộ',
+        'Phòng Ban / Đơn Vị',
+        'Tên Thiết Bị Đề Xuất',
+        'Số Lượng',
+        'Chủng Loại / Quy Cách',
+        'Lý Do Đề Xuất',
+        'Yêu Cầu Kỹ Thuật / Mô Tả',
+        'Ngày Đề Nghị',
+        'Thời Gian Dự Kiến Mua',
+        'Cán Bộ Phân Công',
+        'Trạng Thái Xử Lý',
+        'Ngày Hoàn Thành',
+        'Ghi Chú',
       ];
-      rows = filteredProcurements.map((p) => [
-        p.id,
-        p.fullName,
-        p.department,
-        p.equipmentName,
-        p.quantity,
-        p.category,
-        p.reason,
-        p.description,
-        p.requestDate,
-        p.proposedDate,
+      const rows = filteredProcurements.map((p, idx) => [
+        idx + 1,
+        p.id || '',
+        p.fullName || '',
+        p.department || '',
+        p.equipmentName || '',
+        Number(p.quantity) || 1,
+        p.category || '',
+        p.reason || '',
+        p.description || '',
+        p.requestDate || '',
+        p.proposedDate || '',
         p.handler || '',
-        p.status,
+        p.status || '',
         p.completionDate || '',
         p.note || '',
       ]);
+      const sheetName = 'DeNghi_MuaSam';
+      const filename = `DanhSach_MuaSam_VietinBank_${new Date().toISOString().split('T')[0]}`;
+      return { headers, rows, sheetName, filename };
     }
+  };
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,\uFEFF' +
-      [headers.join(','), ...rows.map((row) => row.map((v: any) => `"${v}"`).join(','))].join('\n');
+  // Export native Excel (.xlsx) file with separate columns, rows and auto-fit column widths
+  const handleExportExcel = () => {
+    try {
+      const { headers, rows, sheetName, filename } = getExportData();
+      const data = [headers, ...rows];
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `DanhSach_${activeSubTab === 'repair' ? 'SuaChua' : 'MuaSam'}_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(data);
 
-    showToast('Đã xuất file CSV Excel thành công!', 'success');
+      // Auto-calculate column widths
+      const colWidths = headers.map((header, colIdx) => {
+        let maxLen = header.length;
+        rows.forEach((row) => {
+          const val = row[colIdx] !== null && row[colIdx] !== undefined ? String(row[colIdx]) : '';
+          if (val.length > maxLen) {
+            maxLen = val.length;
+          }
+        });
+        return { wch: Math.min(50, Math.max(12, maxLen + 3)) };
+      });
+      ws['!cols'] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      XLSX.writeFile(wb, `${filename}.xlsx`);
+
+      showToast(`Đã xuất file Excel (.xlsx) gồm ${rows.length} bản ghi thành công!`, 'success');
+    } catch (error) {
+      console.error('Lỗi khi xuất file Excel:', error);
+      showToast('Có lỗi khi tạo file Excel. Vui lòng thử lại!', 'error');
+    }
+  };
+
+  // Export standard RFC-4180 CSV file with UTF-8 BOM, CRLF and proper Blob download
+  const handleExportCSV = () => {
+    try {
+      const { headers, rows, filename } = getExportData();
+
+      const escapeCsvCell = (val: any) => {
+        if (val === null || val === undefined) return '""';
+        const str = String(val).replace(/"/g, '""');
+        return `"${str}"`;
+      };
+
+      const csvRows = [
+        headers.map(escapeCsvCell).join(','),
+        ...rows.map((row) => row.map(escapeCsvCell).join(',')),
+      ];
+
+      const csvContent = '\uFEFF' + csvRows.join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${filename}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToast(`Đã xuất file CSV gồm ${rows.length} bản ghi thành công!`, 'success');
+    } catch (error) {
+      console.error('Lỗi khi xuất CSV:', error);
+      showToast('Có lỗi khi tạo file CSV.', 'error');
+    }
   };
 
   return (
@@ -573,11 +634,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
 
             <button
-              onClick={handleExportCSV}
-              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center space-x-1.5"
+              onClick={handleExportExcel}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center space-x-1.5 cursor-pointer transform hover:scale-105 active:scale-95"
+              title="Xuất file Excel (.xlsx) chuẩn với đầy đủ hàng, cột, tiêu đề và định dạng đẹp"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>Xuất Excel CSV</span>
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Xuất File Excel (.xlsx)</span>
+            </button>
+
+            <button
+              onClick={handleExportCSV}
+              className="px-3.5 py-2 bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center space-x-1.5 cursor-pointer"
+              title="Xuất file định dạng CSV (chuẩn UTF-8 có BOM)"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-300" />
+              <span>Xuất CSV</span>
             </button>
           </div>
         </div>
