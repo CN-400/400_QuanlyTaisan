@@ -991,7 +991,7 @@ function writeLog(logSheet, actorUsername, action, targetUsername, result, detai
 }
 
 /**
- * Định dạng ngày giờ chuẩn Việt Nam (dd-MM-yyyy - HH:mm hoặc dd-MM-yyyy)
+ * Định dạng ngày chuẩn Việt Nam (dd-MM-yyyy)
  */
 function formatVnDateAppsScript(val) {
   if (!val) return "";
@@ -1000,14 +1000,7 @@ function formatVnDateAppsScript(val) {
     var d = val.getDate();
     var m = val.getMonth() + 1;
     var y = val.getFullYear();
-    var hh = val.getHours();
-    var mm = val.getMinutes();
-    var dStr = (d < 10 ? "0" : "") + d + "-" + (m < 10 ? "0" : "") + m + "-" + y;
-    if (hh === 0 && mm === 0) {
-      return dStr;
-    }
-    var tStr = (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
-    return dStr + " - " + tStr;
+    return (d < 10 ? "0" : "") + d + "-" + (m < 10 ? "0" : "") + m + "-" + y;
   }
   var str = String(val).trim();
   if (str.indexOf("T") > 0) {
