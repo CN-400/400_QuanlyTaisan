@@ -26,7 +26,7 @@ import {
   Users,
 } from 'lucide-react';
 import { AppSettings, ProcurementRequest, RepairRequest, RequestStatus } from '../types';
-import { DEPARTMENTS, STATUS_OPTIONS, URGENCY_LEVELS } from '../constants/data';
+import { DEPARTMENTS, EQUIPMENT_LIST, STATUS_OPTIONS, URGENCY_LEVELS } from '../constants/data';
 import { OfficerUpdateModal } from './OfficerUpdateModal';
 import { PrintTicketModal } from './PrintTicketModal';
 import { PrintReportListModal } from './PrintReportListModal';
@@ -74,6 +74,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedDept, setSelectedDept] = useState<string>('Tất cả');
   const [selectedStatus, setSelectedStatus] = useState<string>('Tất cả');
   const [selectedUrgency, setSelectedUrgency] = useState<string>('Tất cả');
+  const [selectedEquipment, setSelectedEquipment] = useState<string>('Tất cả');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
 
@@ -280,12 +281,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       const matchesDept = selectedDept === 'Tất cả' || p.department === selectedDept;
       const matchesStatus = selectedStatus === 'Tất cả' || p.status === selectedStatus;
+      const matchesEquipment = selectedEquipment === 'Tất cả' || p.equipmentName === selectedEquipment;
 
       const itemDate = getItemDateString(p.requestDate, p.createdAt);
       const matchesStartDate = !startDate || (itemDate ? itemDate >= startDate : true);
       const matchesEndDate = !endDate || (itemDate ? itemDate <= endDate : true);
 
-      return matchesSearch && matchesDept && matchesStatus && matchesStartDate && matchesEndDate;
+      return matchesSearch && matchesDept && matchesStatus && matchesEquipment && matchesStartDate && matchesEndDate;
     })
     .sort(compareRequestsNewestFirst);
 
@@ -849,7 +851,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </select>
             </div>
 
-            {/* Urgency Filter (Only for repair) */}
+            {/* Urgency Filter (Only for repair) or Equipment Filter (Only for procurement) */}
             {activeSubTab === 'repair' ? (
               <div>
                 <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
@@ -871,11 +873,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             ) : (
               <div>
                 <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">
-                  Phân loại mục
+                  Lọc theo Tên thiết bị đề xuất
                 </label>
-                <div className="py-2 px-3 bg-white rounded-lg border border-gray-300 text-gray-500 italic text-[11px]">
-                  Phiếu Đề Nghị Mua Sắm
-                </div>
+                <select
+                  value={selectedEquipment}
+                  onChange={(e) => setSelectedEquipment(e.target.value)}
+                  className="w-full px-3 py-2 bg-white rounded-lg border border-gray-300 focus:ring-2 focus:ring-emerald-600 outline-none text-xs font-medium text-gray-800"
+                >
+                  <option value="Tất cả">Tất cả thiết bị ({EQUIPMENT_LIST.length})</option>
+                  {EQUIPMENT_LIST.map((eq) => (
+                    <option key={eq} value={eq}>
+                      {eq}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
           </div>
@@ -950,6 +961,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               selectedDept !== 'Tất cả' ||
               selectedStatus !== 'Tất cả' ||
               selectedUrgency !== 'Tất cả' ||
+              selectedEquipment !== 'Tất cả' ||
               startDate ||
               endDate) && (
               <button
@@ -958,6 +970,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   setSelectedDept('Tất cả');
                   setSelectedStatus('Tất cả');
                   setSelectedUrgency('Tất cả');
+                  setSelectedEquipment('Tất cả');
                   setStartDate('');
                   setEndDate('');
                 }}
@@ -971,7 +984,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         {/* Filter Results & Action Summary Bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-1 pt-1 text-xs">
-          <div className="flex items-center space-x-2 text-gray-700">
+          <div className="flex items-center space-x-2 text-gray-700 flex-wrap gap-y-1">
             <span className="font-semibold">
               Kết quả tìm kiếm:
             </span>
@@ -979,6 +992,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {activeSubTab === 'repair' ? filteredRepairs.length : filteredProcurements.length} /{' '}
               {activeSubTab === 'repair' ? repairRequests.length : procurementRequests.length} đề nghị
             </span>
+            {selectedEquipment !== 'Tất cả' && activeSubTab === 'procurement' && (
+              <span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded text-[11px] font-medium hidden md:inline-block">
+                Thiết bị: {selectedEquipment}
+              </span>
+            )}
             {(startDate || endDate) && (
               <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded text-[11px] font-medium hidden md:inline-block">
                 Thời gian:{' '}
